@@ -8,6 +8,7 @@
 		"./packages/*"
 	],
 	"scripts": {
+		"postinstall": "npm i -w api Glowin/node-sqlite3#sqlite3-3.36.0 --build-from-source",
 		"lint": "npm-run-all --parallel --continue-on-error lint:*",
 		"lint:eslint": "eslint .",
 		"lint:stylelint": "stylelint \"**/*.{css,scss,vue}\"",
@@ -53,7 +54,7 @@
 		"pg": "8.7.1",
 		"prettier": "2.3.2",
 		"simple-git-hooks": "2.6.1",
-		"sqlite3": "5.0.2",
+		"sqlite3": "github:Glowin/node-sqlite3#sqlite3-3.36.0",
 		"stylelint": "13.13.1",
 		"stylelint-config-prettier": "8.0.2",
 		"stylelint-config-rational-order": "0.1.2",
