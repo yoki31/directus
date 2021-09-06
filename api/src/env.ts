@@ -60,6 +60,8 @@ const defaults: Record<string, any> = {
 
 	EXTENSIONS_PATH: './extensions',
 
+	SPATIALITE_PATH: '',
+
 	EMAIL_FROM: 'no-reply@directus.io',
 	EMAIL_TRANSPORT: 'sendmail',
 	EMAIL_SENDMAIL_NEW_LINE: 'unix',
