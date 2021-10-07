@@ -1,20 +1,28 @@
 # Custom API Hooks <small></small>
 
-> Custom API Hooks allow running custom logic when a specified event occurs within your project. They can be registered
-> as either "blocking" or immediate.
+> Custom API Hooks allow running custom logic when a specified event occurs within your project. There are different
+> types of events to choose from.
 
-## 1. Create a Hook File
+## Extension Entrypoint
 
-Custom hooks are dynamically loaded from within your extensions folder. By default this directory is located at
-`/extensions`, but it can be configured within your project's env file to be located anywhere.
+The entrypoint of your hook is the `index` file inside the `src/` folder of your extension package. It exports a
+register function to register one or more event listeners.
 
-### Default Standalone Hook Location
+Example of an entrypoint:
 
+```js
+export default ({ filter, action }) => {
+	filter('items.create', () => {
+		console.log('Creating Item!');
+	});
+
+	action('items.create', () => {
+		console.log('Item created!');
+	});
+};
 ```
-/extensions/hooks/<hook-id>/index.js
-```
 
-## 2. Define the Event
+## Events
 
 Next, you will want to define your event. You can trigger your custom hook with any of the platform's many API events.
 An event is defined by its type and its name.
@@ -36,11 +44,11 @@ There are four event types to choose from.
 A filter event executes prior to the event being fired. This allows you to check and/or modify the event's payload
 before it is processed.
 
-It also allows you to cancel an event based on the logic within the hook. Below is an example of how you can cancel a
-create event by throwing a standard Directus exception.
+It also allows you to cancel an event based on the logic within the hook. The following example shows how you can cancel
+an event by throwing a standard Directus exception:
 
 ```js
-module.exports = function registerHook({ filter }, { exceptions }) {
+export default ({ filter }, { exceptions }) => {
 	const { InvalidPayloadException } = exceptions;
 
 	filter('items.create', async (input) => {
@@ -86,6 +94,12 @@ properties:
 
 :::
 
+::: warning Performance
+
+Filters can impact performance when not carefully implemented, as they are executed in a blocking manner.
+
+:::
+
 ### Action
 
 An action event executes after a certain event and receives some data related to the event.
@@ -123,6 +137,13 @@ object. The third argument is a context object with the following properties:
 
 :::
 
+::: warning Performance
+
+`read` actions can impact performance when not carefully implemented, as a single request can result in a large amount
+of database reads.
+
+:::
+
 ### Init
 
 An init event executes at a certain point within the lifecycle of Directus. Init events can be used to inject logic into
@@ -156,35 +177,16 @@ to the `schedule()` function, for example `schedule('15 14 1 * *', <...>)` (at 1
 ```js
 const axios = require('axios');
 
-module.exports = function registerHook({ schedule }) {
+export default ({ schedule }) => {
 	schedule('*/15 * * * *', async () => {
 		await axios.post('http://example.com/webhook', { message: 'Another 15 minutes passed...' });
 	});
 };
 ```
 
-## 3. Register your Hook
+## Register Function
 
-Each custom hook is registered to its event scope using a function with the following format:
-
-```js
-const axios = require('axios');
-
-module.exports = function registerHook({ action }) {
-	action('items.create', () => {
-		axios.post('http://example.com/webhook');
-	});
-};
-```
-
-## 4. Develop your Custom Hook
-
-> Hooks can impact performance when not carefully implemented. This is especially true for filter hooks (as these are
-> blocking) and hooks on `read` actions, as a single request can result in a large amount of database reads.
-
-### Register Function
-
-The `registerHook` function receives an object containing the type-specific register functions as the first parameter:
+The register function receives an object containing the type-specific register functions as the first parameter:
 
 - `filter` — Listen for a filter event
 - `action` — Listen for an action event
@@ -200,22 +202,12 @@ The second parameter is a context object with the following properties:
 - `env` — Parsed environment variables
 - `logger` — [Pino](https://github.com/pinojs/pino) instance.
 
-## 5. Restart the API
-
-To deploy your hook, simply restart the API by running:
-
-```bash
-npx directus start
-```
-
-## Full Example
-
-`extensions/hooks/sync-with-external/index.js`:
+## Example: Sync with External
 
 ```js
 const axios = require('axios');
 
-module.exports = function registerHook({ filter, action }, { services, exceptions }) {
+export default ({ filter, action }, { services, exceptions }) => {
 	const { MailService } = services;
 	const { ServiceUnavailableException, ForbiddenException } = exceptions;
 
