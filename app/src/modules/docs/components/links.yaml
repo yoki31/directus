@@ -70,6 +70,8 @@
       name: Displays
     - to: '/guides/email-templates'
       name: Email Templates
+    - to: '/guides/extensions'
+      name: Extensions
     - to: '/guides/fields'
       name: Fields
     - to: '/guides/files'
