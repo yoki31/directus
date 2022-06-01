@@ -143,7 +143,7 @@
 		"rate-limiter-flexible": "^2.2.2",
 		"resolve-cwd": "^3.0.0",
 		"rollup": "^2.52.1",
-		"sharp": "^0.29.0",
+		"sharp": "^0.30.5",
 		"stream-json": "^1.7.1",
 		"supertest": "^6.1.6",
 		"update-check": "^1.5.4",
