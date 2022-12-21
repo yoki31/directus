@@ -75,7 +75,7 @@ import { useI18n } from 'vue-i18n';
 import RelatedCollectionSelect from '../shared/related-collection-select.vue';
 import RelatedFieldSelect from '../shared/related-field-select.vue';
 import { orderBy } from 'lodash';
-import { useCollectionsStore } from '@/stores';
+import { useCollectionsStore } from '@/stores/collections';
 
 export default defineComponent({
 	components: { RelatedCollectionSelect, RelatedFieldSelect },
@@ -92,12 +92,12 @@ export default defineComponent({
 		const relatedCollectionM2O = syncFieldDetailStoreProperty('relations.m2o.related_collection');
 		const o2mCollection = syncFieldDetailStoreProperty('relations.o2m.collection');
 		const o2mField = syncFieldDetailStoreProperty('relations.o2m.field');
-		const oneAllowedCollections = syncFieldDetailStoreProperty('relations.m2o.meta.one_allowed_fields', []);
+		const oneAllowedCollections = syncFieldDetailStoreProperty('relations.m2o.meta.one_allowed_collections', []);
 
 		const availableCollections = computed(() => {
 			return orderBy(
 				[
-					...collectionsStore.allCollections,
+					...collectionsStore.databaseCollections,
 					{
 						divider: true,
 					},

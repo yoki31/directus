@@ -1,27 +1,22 @@
-import formatTitle from '@directus/format-title';
 import openapi from '@directus/specs';
 import { Knex } from 'knex';
 import { cloneDeep, mergeWith } from 'lodash';
-import {
-	OpenAPIObject,
-	OperationObject,
-	ParameterObject,
-	PathItemObject,
-	ReferenceObject,
-	SchemaObject,
-	TagObject,
-} from 'openapi3-ts';
+import { OpenAPIObject, ParameterObject, PathItemObject, ReferenceObject, SchemaObject, TagObject } from 'openapi3-ts';
 // @ts-ignore
 import { version } from '../../package.json';
 import getDatabase from '../database';
 import env from '../env';
-import { AbstractServiceOptions, Collection, Relation, SchemaOverview } from '../types';
-import { Accountability, Field, Type, Permission } from '@directus/shared/types';
+import { AbstractServiceOptions, Collection } from '../types';
+import { Accountability, Field, Type, Permission, SchemaOverview, Relation } from '@directus/shared/types';
 import { getRelationType } from '../utils/get-relation-type';
 import { CollectionsService } from './collections';
 import { FieldsService } from './fields';
 import { GraphQLService } from './graphql';
 import { RelationsService } from './relations';
+import { OAS_REQUIRED_SCHEMAS } from '../constants';
+
+// @ts-ignore
+import formatTitle from '@directus/format-title';
 
 export class SpecificationService {
 	accountability: Accountability | null;
@@ -92,7 +87,7 @@ class OASSpecsService implements SpecificationSubService {
 		const collections = await this.collectionsService.readByQuery();
 		const fields = await this.fieldsService.readAll();
 		const relations = (await this.relationsService.readAll()) as Relation[];
-		const permissions = this.schema.permissions;
+		const permissions = this.accountability?.permissions ?? [];
 
 		const tags = await this.generateTags(collections);
 		const paths = await this.generatePaths(permissions, tags);
@@ -166,7 +161,7 @@ class OASSpecsService implements SpecificationSubService {
 
 			if (isSystem) {
 				for (const [path, pathItem] of Object.entries<PathItemObject>(openapi.paths)) {
-					for (const [method, operation] of Object.entries<OperationObject>(pathItem)) {
+					for (const [method, operation] of Object.entries(pathItem)) {
 						if (operation.tags?.includes(tag.name)) {
 							if (!paths[path]) {
 								paths[path] = {};
@@ -297,9 +292,7 @@ class OASSpecsService implements SpecificationSubService {
 																schema: {
 																	properties: {
 																		data: {
-																			items: {
-																				$ref: `#/components/schemas/${tag.name}`,
-																			},
+																			$ref: `#/components/schemas/${tag.name}`,
 																		},
 																	},
 																},
@@ -333,6 +326,15 @@ class OASSpecsService implements SpecificationSubService {
 
 		components.schemas = {};
 
+		// Always includes the schemas with these names
+		if (openapi.components?.schemas !== null) {
+			for (const schemaName of OAS_REQUIRED_SCHEMAS) {
+				if (openapi.components!.schemas![schemaName] !== null) {
+					components.schemas[schemaName] = cloneDeep(openapi.components!.schemas![schemaName]);
+				}
+			}
+		}
+
 		if (!tags) return;
 
 		for (const collection of collections) {
@@ -345,7 +347,7 @@ class OASSpecsService implements SpecificationSubService {
 			const fieldsInCollection = fields.filter((field) => field.collection === collection.collection);
 
 			if (isSystem) {
-				const schemaComponent: SchemaObject = cloneDeep(openapi.components!.schemas![tag.name]);
+				const schemaComponent = cloneDeep(openapi.components!.schemas![tag.name]) as SchemaObject;
 
 				schemaComponent.properties = {};
 
@@ -378,7 +380,7 @@ class OASSpecsService implements SpecificationSubService {
 	private filterCollectionFromParams(
 		parameters: (ParameterObject | ReferenceObject)[]
 	): (ParameterObject | ReferenceObject)[] {
-		return parameters.filter((param) => param?.$ref !== '#/components/parameters/Collection');
+		return parameters.filter((param) => (param as ReferenceObject)?.$ref !== '#/components/parameters/Collection');
 	}
 
 	private getActionForMethod(method: string): 'create' | 'read' | 'update' | 'delete' {
@@ -454,7 +456,7 @@ class OASSpecsService implements SpecificationSubService {
 						},
 					],
 				};
-			} else if (relationType === 'm2a') {
+			} else if (relationType === 'a2o') {
 				const relatedTags = tags.filter((tag) => relation.meta!.one_allowed_collections!.includes(tag['x-collection']));
 
 				propertyObject.type = 'array';
@@ -465,7 +467,7 @@ class OASSpecsService implements SpecificationSubService {
 						},
 						relatedTags.map((tag) => ({
 							$ref: `#/components/schemas/${tag.name}`,
-						})),
+						})) as any,
 					],
 				};
 			}
@@ -477,7 +479,7 @@ class OASSpecsService implements SpecificationSubService {
 	private fieldTypes: Record<
 		Type,
 		{
-			type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'integer' | 'null' | undefined;
+			type?: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'integer' | 'null' | undefined;
 			format?: string;
 			items?: any;
 		}
@@ -523,12 +525,7 @@ class OASSpecsService implements SpecificationSubService {
 		integer: {
 			type: 'integer',
 		},
-		json: {
-			type: 'array',
-			items: {
-				type: 'string',
-			},
-		},
+		json: {},
 		string: {
 			type: 'string',
 		},
@@ -551,7 +548,25 @@ class OASSpecsService implements SpecificationSubService {
 			format: 'uuid',
 		},
 		geometry: {
-			type: 'string',
+			type: 'object',
+		},
+		'geometry.Point': {
+			type: 'object',
+		},
+		'geometry.LineString': {
+			type: 'object',
+		},
+		'geometry.Polygon': {
+			type: 'object',
+		},
+		'geometry.MultiPoint': {
+			type: 'object',
+		},
+		'geometry.MultiLineString': {
+			type: 'object',
+		},
+		'geometry.MultiPolygon': {
+			type: 'object',
 		},
 	};
 }

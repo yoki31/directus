@@ -1,17 +1,29 @@
-import { Router } from 'express';
-import { Issuer, Client, generators, errors } from 'openid-client';
+import { BaseException } from '@directus/shared/exceptions';
+import { parseJSON } from '@directus/shared/utils';
+import express, { Router } from 'express';
+import flatten from 'flat';
 import jwt from 'jsonwebtoken';
 import ms from 'ms';
-import { LocalAuthDriver } from './local';
+import { Client, errors, generators, Issuer } from 'openid-client';
 import { getAuthProvider } from '../../auth';
 import env from '../../env';
-import { AuthenticationService, UsersService } from '../../services';
-import { AuthDriverOptions, User, AuthData, SessionData } from '../../types';
-import { InvalidCredentialsException, ServiceUnavailableException, InvalidConfigException } from '../../exceptions';
-import { respond } from '../../middleware/respond';
-import asyncHandler from '../../utils/async-handler';
-import { Url } from '../../utils/url';
+import {
+	InvalidConfigException,
+	InvalidCredentialsException,
+	InvalidProviderException,
+	InvalidTokenException,
+	ServiceUnavailableException,
+} from '../../exceptions';
+import { RecordNotUniqueException } from '../../exceptions/database/record-not-unique';
 import logger from '../../logger';
+import { respond } from '../../middleware/respond';
+import { AuthenticationService, UsersService } from '../../services';
+import { AuthData, AuthDriverOptions, User } from '../../types';
+import asyncHandler from '../../utils/async-handler';
+import { getConfigFromEnv } from '../../utils/get-config-from-env';
+import { getIPFromReq } from '../../utils/get-ip-from-req';
+import { Url } from '../../utils/url';
+import { LocalAuthDriver } from './local';
 
 export class OAuth2AuthDriver extends LocalAuthDriver {
 	client: Client;
@@ -41,11 +53,18 @@ export class OAuth2AuthDriver extends LocalAuthDriver {
 			issuer: additionalConfig.provider,
 		});
 
+		const clientOptionsOverrides = getConfigFromEnv(
+			`AUTH_${config.provider.toUpperCase()}_CLIENT_`,
+			[`AUTH_${config.provider.toUpperCase()}_CLIENT_ID`, `AUTH_${config.provider.toUpperCase()}_CLIENT_SECRET`],
+			'underscore'
+		);
+
 		this.client = new issuer.Client({
 			client_id: clientId,
 			client_secret: clientSecret,
 			redirect_uris: [this.redirectUrl],
 			response_types: ['code'],
+			...clientOptionsOverrides,
 		});
 	}
 
@@ -53,13 +72,20 @@ export class OAuth2AuthDriver extends LocalAuthDriver {
 		return generators.codeVerifier();
 	}
 
-	generateAuthUrl(codeVerifier: string): string {
+	generateAuthUrl(codeVerifier: string, prompt = false): string {
 		try {
+			const codeChallenge = generators.codeChallenge(codeVerifier);
+			const paramsConfig = typeof this.config.params === 'object' ? this.config.params : {};
+
 			return this.client.authorizationUrl({
 				scope: this.config.scope ?? 'email',
-				code_challenge: generators.codeChallenge(codeVerifier),
-				code_challenge_method: 'S256',
 				access_type: 'offline',
+				prompt: prompt ? 'consent' : undefined,
+				...paramsConfig,
+				code_challenge: codeChallenge,
+				code_challenge_method: 'S256',
+				// Some providers require state even with PKCE
+				state: codeChallenge,
 			});
 		} catch (e) {
 			throw handleError(e);
@@ -77,7 +103,8 @@ export class OAuth2AuthDriver extends LocalAuthDriver {
 	}
 
 	async getUserID(payload: Record<string, any>): Promise<string> {
-		if (!payload.code || !payload.codeVerifier) {
+		if (!payload.code || !payload.codeVerifier || !payload.state) {
+			logger.warn('[OAuth2] No code, codeVerifier or state in payload');
 			throw new InvalidCredentialsException();
 		}
 
@@ -85,25 +112,27 @@ export class OAuth2AuthDriver extends LocalAuthDriver {
 		let userInfo;
 
 		try {
-			tokenSet = await this.client.grant({
-				grant_type: 'authorization_code',
-				code: payload.code,
-				redirect_uri: this.redirectUrl,
-				code_verifier: payload.codeVerifier,
-			});
-			userInfo = await this.client.userinfo(tokenSet);
+			tokenSet = await this.client.oauthCallback(
+				this.redirectUrl,
+				{ code: payload.code, state: payload.state },
+				{ code_verifier: payload.codeVerifier, state: generators.codeChallenge(payload.codeVerifier) }
+			);
+			userInfo = await this.client.userinfo(tokenSet.access_token!);
 		} catch (e) {
 			throw handleError(e);
 		}
 
-		const { emailKey, identifierKey, allowPublicRegistration } = this.config;
+		// Flatten response to support dot indexes
+		userInfo = flatten(userInfo) as Record<string, unknown>;
 
-		const email = userInfo[emailKey ?? 'email'] as string | null | undefined;
+		const { provider, emailKey, identifierKey, allowPublicRegistration } = this.config;
+
+		const email = userInfo[emailKey ?? 'email'] ? String(userInfo[emailKey ?? 'email']) : undefined;
 		// Fallback to email if explicit identifier not found
-		const identifier = (userInfo[identifierKey] as string | null | undefined) ?? email;
+		const identifier = userInfo[identifierKey] ? String(userInfo[identifierKey]) : email;
 
 		if (!identifier) {
-			logger.warn(`Failed to find user identifier for provider "${this.config.provider}"`);
+			logger.warn(`[OAuth2] Failed to find user identifier for provider "${provider}"`);
 			throw new InvalidCredentialsException();
 		}
 
@@ -121,44 +150,58 @@ export class OAuth2AuthDriver extends LocalAuthDriver {
 
 		// Is public registration allowed?
 		if (!allowPublicRegistration) {
+			logger.warn(`[OAuth2] User doesn't exist, and public registration not allowed for provider "${provider}"`);
 			throw new InvalidCredentialsException();
 		}
 
-		await this.usersService.createOne({
-			provider: this.config.provider,
-			email: email,
-			external_identifier: identifier,
-			role: this.config.defaultRoleId,
-			auth_data: tokenSet.refresh_token && JSON.stringify({ refreshToken: tokenSet.refresh_token }),
-		});
+		try {
+			await this.usersService.createOne({
+				provider,
+				first_name: userInfo[this.config.firstNameKey],
+				last_name: userInfo[this.config.lastNameKey],
+				email: email,
+				external_identifier: identifier,
+				role: this.config.defaultRoleId,
+				auth_data: tokenSet.refresh_token && JSON.stringify({ refreshToken: tokenSet.refresh_token }),
+			});
+		} catch (e) {
+			if (e instanceof RecordNotUniqueException) {
+				logger.warn(e, '[OAuth2] Failed to register user. User not unique');
+				throw new InvalidProviderException();
+			}
+			throw e;
+		}
 
 		return (await this.fetchUserId(identifier)) as string;
 	}
 
-	async login(user: User, sessionData: SessionData): Promise<SessionData> {
-		return this.refresh(user, sessionData);
+	async login(user: User): Promise<void> {
+		return this.refresh(user);
 	}
 
-	async refresh(user: User, sessionData: SessionData): Promise<SessionData> {
+	async refresh(user: User): Promise<void> {
 		let authData = user.auth_data as AuthData;
 
 		if (typeof authData === 'string') {
 			try {
-				authData = JSON.parse(authData);
+				authData = parseJSON(authData);
 			} catch {
-				logger.warn(`Session data isn't valid JSON: ${authData}`);
+				logger.warn(`[OAuth2] Session data isn't valid JSON: ${authData}`);
 			}
 		}
 
-		if (!authData?.refreshToken) {
-			return sessionData;
-		}
-
-		try {
-			const tokenSet = await this.client.refresh(authData.refreshToken);
-			return { accessToken: tokenSet.access_token };
-		} catch (e) {
-			throw handleError(e);
+		if (authData?.refreshToken) {
+			try {
+				const tokenSet = await this.client.refresh(authData.refreshToken);
+				// Update user refreshToken if provided
+				if (tokenSet.refresh_token) {
+					await this.usersService.updateOne(user.id, {
+						auth_data: JSON.stringify({ refreshToken: tokenSet.refresh_token }),
+					});
+				}
+			} catch (e) {
+				throw handleError(e);
+			}
 		}
 	}
 }
@@ -167,17 +210,23 @@ const handleError = (e: any) => {
 	if (e instanceof errors.OPError) {
 		if (e.error === 'invalid_grant') {
 			// Invalid token
-			return new InvalidCredentialsException();
+			logger.trace(e, `[OAuth2] Invalid grant`);
+			return new InvalidTokenException();
 		}
+
 		// Server response error
+		logger.trace(e, `[OAuth2] Unknown OP error`);
 		return new ServiceUnavailableException('Service returned unexpected response', {
-			service: 'openid',
+			service: 'oauth2',
 			message: e.error_description,
 		});
 	} else if (e instanceof errors.RPError) {
 		// Internal client error
+		logger.trace(e, `[OAuth2] Unknown RP error`);
 		return new InvalidCredentialsException();
 	}
+
+	logger.trace(e, `[OAuth2] Unknown error`);
 	return e;
 };
 
@@ -189,7 +238,8 @@ export function createOAuth2AuthRouter(providerName: string): Router {
 		(req, res) => {
 			const provider = getAuthProvider(providerName) as OAuth2AuthDriver;
 			const codeVerifier = provider.generateCodeVerifier();
-			const token = jwt.sign({ verifier: codeVerifier, redirect: req.query.redirect }, env.SECRET as string, {
+			const prompt = !!req.query.prompt;
+			const token = jwt.sign({ verifier: codeVerifier, redirect: req.query.redirect, prompt }, env.SECRET as string, {
 				expiresIn: '5m',
 				issuer: 'directus',
 			});
@@ -199,11 +249,19 @@ export function createOAuth2AuthRouter(providerName: string): Router {
 				sameSite: 'lax',
 			});
 
-			return res.redirect(provider.generateAuthUrl(codeVerifier));
+			return res.redirect(provider.generateAuthUrl(codeVerifier, prompt));
 		},
 		respond
 	);
 
+	router.post(
+		'/callback',
+		express.urlencoded({ extended: false }),
+		(req, res) => {
+			res.redirect(303, `./callback?${new URLSearchParams(req.body)}`);
+		},
+		respond
+	);
 	router.get(
 		'/callback',
 		asyncHandler(async (req, res, next) => {
@@ -213,17 +271,20 @@ export function createOAuth2AuthRouter(providerName: string): Router {
 				tokenData = jwt.verify(req.cookies[`oauth2.${providerName}`], env.SECRET as string, { issuer: 'directus' }) as {
 					verifier: string;
 					redirect?: string;
+					prompt: boolean;
 				};
-			} catch (e) {
+			} catch (e: any) {
+				logger.warn(e, `[OAuth2] Couldn't verify OAuth2 cookie`);
 				throw new InvalidCredentialsException();
 			}
 
-			const { verifier, redirect } = tokenData;
+			const { verifier, redirect, prompt } = tokenData;
 
 			const authenticationService = new AuthenticationService({
 				accountability: {
-					ip: req.ip,
+					ip: getIPFromReq(req),
 					userAgent: req.get('user-agent'),
+					origin: req.get('origin'),
 					role: null,
 				},
 				schema: req.schema,
@@ -233,30 +294,30 @@ export function createOAuth2AuthRouter(providerName: string): Router {
 
 			try {
 				res.clearCookie(`oauth2.${providerName}`);
-
-				if (!req.query.code) {
-					logger.warn(`Couldn't extract OAuth2 code from query: ${JSON.stringify(req.query)}`);
-				}
-
 				authResponse = await authenticationService.login(providerName, {
 					code: req.query.code,
 					codeVerifier: verifier,
+					state: req.query.state,
 				});
 			} catch (error: any) {
-				logger.warn(error);
+				// Prompt user for a new refresh_token if invalidated
+				if (error instanceof InvalidTokenException && !prompt) {
+					return res.redirect(`./?${redirect ? `redirect=${redirect}&` : ''}prompt=true`);
+				}
 
 				if (redirect) {
 					let reason = 'UNKNOWN_EXCEPTION';
 
-					if (error instanceof ServiceUnavailableException) {
-						reason = 'SERVICE_UNAVAILABLE';
-					} else if (error instanceof InvalidCredentialsException) {
-						reason = 'INVALID_USER';
+					if (error instanceof BaseException) {
+						reason = error.code;
+					} else {
+						logger.warn(error, `[OAuth2] Unexpected error during OAuth2 login`);
 					}
 
 					return res.redirect(`${redirect.split('?')[0]}?reason=${reason}`);
 				}
 
+				logger.warn(error, `[OAuth2] Unexpected error during OAuth2 login`);
 				throw error;
 			}
 

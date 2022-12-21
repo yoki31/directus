@@ -1,10 +1,9 @@
 import { Knex } from 'knex';
 import getDatabase from '../database';
 import { ForbiddenException } from '../exceptions';
-import { AbstractServiceOptions, SchemaOverview } from '../types';
-import { Accountability, Query } from '@directus/shared/types';
+import { AbstractServiceOptions } from '../types';
+import { Accountability, Query, SchemaOverview } from '@directus/shared/types';
 import { applyFilter, applySearch } from '../utils/apply-query';
-import { parseFilter } from '@directus/shared/utils';
 
 export class MetaService {
 	knex: Knex;
@@ -40,15 +39,15 @@ export class MetaService {
 		const dbQuery = this.knex(collection).count('*', { as: 'count' }).first();
 
 		if (this.accountability?.admin !== true) {
-			const permissionsRecord = this.schema.permissions.find((permission) => {
+			const permissionsRecord = this.accountability?.permissions?.find((permission) => {
 				return permission.action === 'read' && permission.collection === collection;
 			});
 
 			if (!permissionsRecord) throw new ForbiddenException();
 
-			const permissions = parseFilter(permissionsRecord.permissions, this.accountability);
+			const permissions = permissionsRecord.permissions ?? {};
 
-			applyFilter(this.knex, this.schema, dbQuery, permissions, collection);
+			applyFilter(this.knex, this.schema, dbQuery, permissions, collection, {});
 		}
 
 		const result = await dbQuery;
@@ -62,13 +61,13 @@ export class MetaService {
 		let filter = query.filter || {};
 
 		if (this.accountability?.admin !== true) {
-			const permissionsRecord = this.schema.permissions.find((permission) => {
+			const permissionsRecord = this.accountability?.permissions?.find((permission) => {
 				return permission.action === 'read' && permission.collection === collection;
 			});
 
 			if (!permissionsRecord) throw new ForbiddenException();
 
-			const permissions = parseFilter(permissionsRecord.permissions, this.accountability);
+			const permissions = permissionsRecord.permissions ?? {};
 
 			if (Object.keys(filter).length > 0) {
 				filter = { _and: [permissions, filter] };
@@ -78,7 +77,7 @@ export class MetaService {
 		}
 
 		if (Object.keys(filter).length > 0) {
-			applyFilter(this.knex, this.schema, dbQuery, filter, collection);
+			applyFilter(this.knex, this.schema, dbQuery, filter, collection, {});
 		}
 
 		if (query.search) {

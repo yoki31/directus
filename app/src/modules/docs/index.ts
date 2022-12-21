@@ -10,12 +10,14 @@ export default defineModule({
 	icon: 'help_outline',
 	routes: [
 		{
+			name: 'docs-routes',
 			path: '',
 			component: StaticDocs,
 			children: [
 				{
+					name: 'docs-app-overview-redirect',
 					path: '',
-					redirect: '/docs/getting-started/introduction/',
+					redirect: '/docs/app/overview',
 				},
 				...getRoutes(docs),
 			],

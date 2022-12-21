@@ -17,7 +17,7 @@
 
 			<div class="field">
 				<div class="type-label">{{ t('related_collection') }}</div>
-				<related-collection-select v-model="relatedCollection" :disabled="type === 'files' || isExisting" />
+				<related-collection-select v-model="relatedCollection" :disabled="localType === 'files' || isExisting" />
 			</div>
 
 			<v-input disabled :model-value="currentPrimaryKey" />
@@ -71,7 +71,10 @@
 			<related-field-select
 				v-model="sortField"
 				:collection="junctionCollection"
+				:type-allow-list="['integer', 'bigInteger', 'float', 'decimal']"
+				:disabled-fields="unsortableJunctionFields"
 				:placeholder="t('add_sort_field') + '...'"
+				:nullable="true"
 			/>
 		</div>
 
@@ -202,7 +205,8 @@ import { useFieldDetailStore, syncFieldDetailStoreProperty } from '../store';
 import { storeToRefs } from 'pinia';
 import RelatedCollectionSelect from '../shared/related-collection-select.vue';
 import RelatedFieldSelect from '../shared/related-field-select.vue';
-import { useFieldsStore } from '@/stores';
+import { useFieldsStore } from '@/stores/fields';
+import { useRelationsStore } from '@/stores/relations';
 
 export default defineComponent({
 	components: { RelatedCollectionSelect, RelatedFieldSelect },
@@ -210,9 +214,10 @@ export default defineComponent({
 		const { t } = useI18n();
 
 		const fieldDetailStore = useFieldDetailStore();
+		const relationsStore = useRelationsStore();
 		const fieldsStore = useFieldsStore();
 
-		const { field, collection, editing, generationInfo } = storeToRefs(fieldDetailStore);
+		const { collection, editing, generationInfo, localType } = storeToRefs(fieldDetailStore);
 
 		const sortField = syncFieldDetailStoreProperty('relations.o2m.meta.sort_field');
 		const junctionCollection = syncFieldDetailStoreProperty('relations.o2m.collection');
@@ -224,8 +229,8 @@ export default defineComponent({
 		const onDeleteRelated = syncFieldDetailStoreProperty('relations.m2o.schema.on_delete');
 		const deselectAction = syncFieldDetailStoreProperty('relations.o2m.meta.one_deselect_action');
 		const correspondingField = syncFieldDetailStoreProperty('fields.corresponding');
+		const correspondingFieldKey = syncFieldDetailStoreProperty('fields.corresponding.field');
 
-		const type = computed(() => field.value.type);
 		const isExisting = computed(() => editing.value !== '+');
 
 		const currentPrimaryKey = computed(() => fieldsStore.getPrimaryKeyFieldForCollection(collection.value!)?.field);
@@ -263,24 +268,20 @@ export default defineComponent({
 			return t('add_field_related');
 		});
 
-		const correspondingFieldKey = computed({
-			get() {
-				return correspondingField.value?.field;
-			},
-			set(key: string | undefined) {
-				if (!hasCorresponding.value) {
-					hasCorresponding.value = true;
-				}
-
-				correspondingField.value!.field = key;
-			},
+		const unsortableJunctionFields = computed(() => {
+			let fields = [];
+			if (junctionCollection.value) {
+				const relations = relationsStore.getRelationsForCollection(junctionCollection.value);
+				fields.push(...relations.map((field) => field.field));
+			}
+			return fields;
 		});
 
 		return {
 			t,
 			autoGenerateJunctionRelation,
 			collection,
-			type,
+			localType,
 			isExisting,
 			junctionCollection,
 			junctionFieldCurrent,
@@ -296,6 +297,7 @@ export default defineComponent({
 			correspondingLabel,
 			correspondingFieldKey,
 			generationInfo,
+			unsortableJunctionFields,
 		};
 	},
 });

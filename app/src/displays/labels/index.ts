@@ -8,31 +8,22 @@ export default defineDisplay({
 	types: ['string', 'json', 'csv'],
 	icon: 'flag',
 	component: DisplayLabels,
+	handler: (value, options, { interfaceOptions }) => {
+		if (Array.isArray(value)) {
+			return value.map((val) => getConfiguredChoice(val)).join(', ');
+		} else {
+			return getConfiguredChoice(value);
+		}
+
+		function getConfiguredChoice(val: string) {
+			const configuredChoice =
+				options?.choices?.find((choice: { value: string }) => choice.value === val) ??
+				interfaceOptions?.choices?.find((choice: { value: string }) => choice.value === val);
+
+			return configuredChoice?.text ? configuredChoice.text : val;
+		}
+	},
 	options: [
-		{
-			field: 'defaultForeground',
-			name: '$t:displays.labels.default_foreground',
-			type: 'string',
-			meta: {
-				interface: 'select-color',
-				width: 'half',
-			},
-			schema: {
-				default_value: '#263238',
-			},
-		},
-		{
-			field: 'defaultBackground',
-			name: '$t:displays.labels.default_background',
-			type: 'string',
-			meta: {
-				interface: 'select-color',
-				width: 'half',
-			},
-			schema: {
-				default_value: '#eceff1',
-			},
-		},
 		{
 			field: 'format',
 			name: '$t:format_text',
@@ -74,7 +65,7 @@ export default defineDisplay({
 							name: '$t:text',
 							type: 'string',
 							meta: {
-								interface: 'input',
+								interface: 'system-input-translated-string',
 								width: 'half',
 								options: {
 									placeholder: '$t:displays.labels.choices_text_placeholder',

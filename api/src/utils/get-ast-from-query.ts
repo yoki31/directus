@@ -3,11 +3,11 @@
  */
 
 import { Knex } from 'knex';
-import { cloneDeep, mapKeys, omitBy, uniq } from 'lodash';
-import { Accountability } from '@directus/shared/types';
-import { AST, FieldNode, NestedCollectionNode, SchemaOverview } from '../types';
-import { Query, PermissionsAction } from '@directus/shared/types';
+import { cloneDeep, mapKeys, omitBy, uniq, isEmpty } from 'lodash';
+import { AST, FieldNode, FunctionFieldNode, NestedCollectionNode } from '../types';
+import { Query, PermissionsAction, Accountability, SchemaOverview } from '@directus/shared/types';
 import { getRelationType } from '../utils/get-relation-type';
+import { REGEX_BETWEEN_PARENS } from '@directus/shared/constants';
 
 type GetASTOptions = {
 	accountability?: Accountability | null;
@@ -32,9 +32,9 @@ export default async function getASTFromQuery(
 
 	const permissions =
 		accountability && accountability.admin !== true
-			? schema.permissions.filter((permission) => {
+			? accountability?.permissions?.filter((permission) => {
 					return permission.action === action;
-			  })
+			  }) ?? []
 			: null;
 
 	const ast: AST = {
@@ -106,19 +106,20 @@ export default async function getASTFromQuery(
 
 		fields = await convertWildcards(parentCollection, fields);
 
-		if (!fields) return [];
+		if (!fields || !Array.isArray(fields)) return [];
 
-		const children: (NestedCollectionNode | FieldNode)[] = [];
+		const children: (NestedCollectionNode | FieldNode | FunctionFieldNode)[] = [];
 
-		const relationalStructure: Record<string, string[] | anyNested> = {};
+		const relationalStructure: Record<string, string[] | anyNested> = Object.create(null);
 
 		for (const fieldKey of fields) {
 			let name = fieldKey;
 
-			const isAlias = (query.alias && name in query.alias) ?? false;
-
-			if (isAlias) {
-				name = query.alias![fieldKey];
+			if (query.alias) {
+				// check for field alias (is is one of the key)
+				if (name in query.alias) {
+					name = query.alias[fieldKey];
+				}
 			}
 
 			const isRelational =
@@ -131,12 +132,12 @@ export default async function getASTFromQuery(
 
 			if (isRelational) {
 				// field is relational
-				const parts = name.split('.');
+				const parts = fieldKey.split('.');
 
 				let rootField = parts[0];
 				let collectionScope: string | null = null;
 
-				// m2a related collection scoped field selector `fields=sections.section_id:headings.title`
+				// a2o related collection scoped field selector `fields=sections.section_id:headings.title`
 				if (rootField.includes(':')) {
 					const [key, scope] = rootField.split(':');
 					rootField = key;
@@ -165,6 +166,28 @@ export default async function getASTFromQuery(
 					}
 				}
 			} else {
+				if (fieldKey.includes('(') && fieldKey.includes(')')) {
+					const columnName = fieldKey.match(REGEX_BETWEEN_PARENS)![1];
+					const foundField = schema.collections[parentCollection].fields[columnName];
+
+					if (foundField && foundField.type === 'alias') {
+						const foundRelation = schema.relations.find(
+							(relation) => relation.related_collection === parentCollection && relation.meta?.one_field === columnName
+						);
+
+						if (foundRelation) {
+							children.push({
+								type: 'functionField',
+								name,
+								fieldKey,
+								query: {},
+								relatedCollection: foundRelation.collection,
+							});
+							continue;
+						}
+					}
+				}
+
 				children.push({ type: 'field', name, fieldKey });
 			}
 		}
@@ -191,14 +214,14 @@ export default async function getASTFromQuery(
 
 			let child: NestedCollectionNode | null = null;
 
-			if (relationType === 'm2a') {
+			if (relationType === 'a2o') {
 				const allowedCollections = relation.meta!.one_allowed_collections!.filter((collection) => {
 					if (!permissions) return true;
 					return permissions.some((permission) => permission.collection === collection);
 				});
 
 				child = {
-					type: 'm2a',
+					type: 'a2o',
 					names: allowedCollections,
 					children: {},
 					query: {},
@@ -223,6 +246,10 @@ export default async function getASTFromQuery(
 				if (permissions && permissions.some((permission) => permission.collection === relatedCollection) === false) {
 					continue;
 				}
+
+				// update query alias for children parseFields
+				const deepAlias = getDeepQuery(deep?.[fieldKey] || {})?.alias;
+				if (!isEmpty(deepAlias)) query.alias = deepAlias;
 
 				child = {
 					type: relationType,

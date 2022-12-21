@@ -1,6 +1,7 @@
 import { StateUpdates, State, HelperFunctions } from '../types';
 import { set, get } from 'lodash';
-import { useCollectionsStore, useFieldsStore } from '@/stores';
+import { useCollectionsStore } from '@/stores/collections';
+import { useFieldsStore } from '@/stores/fields';
 
 export function applyChanges(updates: StateUpdates, state: State, helperFn: HelperFunctions) {
 	const { hasChanged } = helperFn;
@@ -12,12 +13,17 @@ export function applyChanges(updates: StateUpdates, state: State, helperFn: Help
 		setDefaults(updates, state, helperFn);
 	}
 
+	if (hasChanged('autoGenerateJunctionRelation')) {
+		setDefaults(updates, state, helperFn);
+	}
+
 	if (hasChanged('field.field')) {
 		updateRelationField(updates);
 	}
 
 	if (hasChanged('relations.m2o.related_collection')) {
 		preventCircularConstraint(updates, state, helperFn);
+		updateJunctionRelated(updates, state, helperFn);
 	}
 
 	if (hasChanged('relations.o2m.field')) {
@@ -28,13 +34,17 @@ export function applyChanges(updates: StateUpdates, state: State, helperFn: Help
 		setJunctionFields(updates, state, helperFn);
 	}
 
+	if (hasChanged('relations.o2m.collection') || hasChanged('relations.m2o.collection')) {
+		matchJunctionCollectionName(updates);
+	}
+
 	if (
 		[
 			'relations.o2m.collection',
 			'relations.o2m.field',
 			'relations.m2o.field',
 			'relations.m2o.related_collection',
-			'relations.o2m.meta?.sort_field',
+			'relations.o2m.meta.sort_field',
 		].some(hasChanged)
 	) {
 		generateCollections(updates, state, helperFn);
@@ -104,6 +114,16 @@ export function setJunctionFields(updates: StateUpdates, _state: State, { getCur
 	set(updates, 'relations.m2o.meta.junction_field', getCurrent('relations.o2m.field'));
 }
 
+export function updateJunctionRelated(updates: StateUpdates, _state: State, { getCurrent }: HelperFunctions) {
+	const fieldsStore = useFieldsStore();
+
+	const relatedCollection = getCurrent('relations.m2o.related_collection');
+	const relatedCollectionPrimaryKeyField =
+		fieldsStore.getPrimaryKeyFieldForCollection(relatedCollection)?.field ?? 'id';
+
+	set(updates, 'relations.m2o.field', `${relatedCollection}_${relatedCollectionPrimaryKeyField}`);
+}
+
 function collectionExists(collection: string) {
 	return !!useCollectionsStore().getCollection(collection);
 }
@@ -165,6 +185,43 @@ export function generateCollections(updates: StateUpdates, state: State, { getCu
 					schema: {},
 					meta: {},
 				},
+				// Open for discussion: we might want to limit choices to 'ltr' and 'rtl'
+				{
+					field: 'direction',
+					type: 'string',
+					schema: {
+						default_value: 'ltr',
+					},
+					meta: {
+						interface: 'select-dropdown',
+						options: {
+							choices: [
+								{
+									text: '$t:left_to_right',
+									value: 'ltr',
+								},
+								{
+									text: '$t:right_to_left',
+									value: 'rtl',
+								},
+							],
+						},
+						display: 'labels',
+						display_options: {
+							choices: [
+								{
+									text: '$t:left_to_right',
+									value: 'ltr',
+								},
+								{
+									text: '$t:right_to_left',
+									value: 'rtl',
+								},
+							],
+							format: false,
+						},
+					},
+				},
 			],
 		});
 
@@ -178,36 +235,48 @@ export function generateCollections(updates: StateUpdates, state: State, { getCu
 				{
 					code: 'en-US',
 					name: 'English',
+					direction: 'ltr',
+				},
+				{
+					code: 'ar-SA',
+					name: 'Arabic',
+					direction: 'rtl',
 				},
 				{
 					code: 'de-DE',
 					name: 'German',
+					direction: 'ltr',
 				},
 				{
 					code: 'fr-FR',
 					name: 'French',
+					direction: 'ltr',
 				},
 				{
 					code: 'ru-RU',
 					name: 'Russian',
+					direction: 'ltr',
 				},
 				{
 					code: 'es-ES',
 					name: 'Spanish',
+					direction: 'ltr',
 				},
 				{
 					code: 'it-IT',
 					name: 'Italian',
+					direction: 'ltr',
 				},
 				{
 					code: 'pt-BR',
 					name: 'Portuguese',
+					direction: 'ltr',
 				},
 			],
 		};
 	} else {
 		set(updates, 'collections.related', undefined);
-		updates.items = undefined;
+		updates.items = {};
 	}
 }
 
@@ -258,7 +327,7 @@ function generateFields(updates: StateUpdates, state: State, { getCurrent }: Hel
 			type: 'integer',
 			schema: {},
 			meta: {
-				hidden: true,
+				hidden: false,
 			},
 		});
 	} else {
@@ -267,6 +336,8 @@ function generateFields(updates: StateUpdates, state: State, { getCurrent }: Hel
 }
 
 export function setDefaults(updates: StateUpdates, state: State, { getCurrent }: HelperFunctions) {
+	if (getCurrent('autoGenerateJunctionRelation') === false) return;
+
 	const fieldsStore = useFieldsStore();
 
 	const currentCollection = state.collection!;
@@ -278,7 +349,7 @@ export function setDefaults(updates: StateUpdates, state: State, { getCurrent }:
 	set(updates, 'relations.o2m.collection', junctionName);
 	set(updates, 'relations.o2m.field', `${currentCollection}_${currentCollectionPrimaryKeyField}`);
 	set(updates, 'relations.m2o.collection', junctionName);
-	set(updates, 'relations.m2o.related_collection', 'languages');
+	set(updates, 'relations.m2o.related_collection', getCurrent('relations.m2o.related_collection') ?? 'languages');
 
 	const languagesCollection = getCurrent('relations.m2o.related_collection');
 	const languagesCollectionPrimaryKeyField =
@@ -289,6 +360,16 @@ export function setDefaults(updates: StateUpdates, state: State, { getCurrent }:
 	if (!getCurrent('field.field')) {
 		set(updates, 'field.field', 'translations');
 		set(updates, 'relations.o2m.meta', 'translations');
+	}
+}
+
+export function matchJunctionCollectionName(updates: StateUpdates) {
+	if (updates?.relations?.o2m?.collection && updates.relations.o2m.collection !== updates.relations.m2o?.collection) {
+		set(updates, 'relations.m2o.collection', updates.relations.o2m.collection);
+	}
+
+	if (updates?.relations?.m2o?.collection && updates.relations.m2o.collection !== updates.relations.o2m?.collection) {
+		set(updates, 'relations.o2m.collection', updates.relations.m2o.collection);
 	}
 }
 

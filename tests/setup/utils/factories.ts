@@ -1,38 +1,37 @@
-/* eslint-disable no-console */
-// import { v4 as uuid } from 'uuid';
-import { music, internet, name, datatype, lorem /*, address */ } from 'faker';
+import { v4 as uuid } from 'uuid';
+import { random } from 'lodash';
 import { Knex } from 'knex';
 
 type Guest = {
-	id?: string | number;
+	id: string;
 	name: string;
 	birthday: Date;
 	earliest_events_to_show: Date | string;
 	latest_events_to_show: Date | string;
 	password: string;
 	shows_attended: number;
-	favorite_artist?: number | Artist;
+	favorite_artist?: string | Artist;
 };
 
 type Artist = {
-	id?: number;
+	id: string;
 	name: string;
 	members: string | Record<string, any>;
 };
 
 type Tour = {
-	id?: number;
+	id: string;
 	revenue: bigint;
 };
 
 type Organizer = {
-	id?: number;
+	id: string;
 	company_name: string;
 };
 
 type Event = {
-	id?: number;
-	time: string;
+	id: string;
+	time: Date;
 	description: string;
 	cost: number;
 	created_at: Date;
@@ -40,7 +39,7 @@ type Event = {
 };
 
 type JoinTable = {
-	[column: string]: number;
+	[column: string]: number | string;
 };
 
 export type Item = Guest | Artist | Tour | Organizer | Event | JoinTable;
@@ -48,7 +47,7 @@ export type Item = Guest | Artist | Tour | Organizer | Event | JoinTable;
 /*
  * Options Example: Artist
  * Select: ['name', 'members']
- * Where: ['id', 3]
+ * Where: ['id', uuid]
  */
 
 type SeedOptions = {
@@ -64,7 +63,7 @@ type SeedOptions = {
  */
 
 type CreateManyOptions = {
-	[column: string]: number;
+	[column: string]: string | (() => unknown);
 };
 
 export const seedTable = async function (
@@ -76,7 +75,7 @@ export const seedTable = async function (
 ): Promise<void | any[] | any> {
 	const row: Record<string, number> = {};
 	if (Array.isArray(factory)) {
-		await database.batchInsert(table, factory, 200);
+		await database(table).insert(factory);
 	} else if (typeof factory === 'object') {
 		if (count > 1) {
 			try {
@@ -131,39 +130,60 @@ export const seedTable = async function (
 	}
 };
 
+const artists = [
+	'The Vines',
+	'Queens of the Stone Age',
+	'The Vaccines',
+	'Black Pistol Fire',
+	'The White Stripes',
+	'White Lies',
+	'Sonic Youth',
+	'Razorlight',
+	'Ron Gallo',
+	'Black Rebel Motorcycle Club',
+];
+
+const guitarBrands = ['gibson', 'fender', 'prs', 'rickenbacker', 'ibanez', 'jackson'];
+
 export const createArtist = (): Artist => ({
-	name: internet.userName(),
-	members: JSON.stringify({ guitar: internet.userName() }),
+	id: uuid(),
+	name: artists[random(0, artists.length - 1)],
+	members: JSON.stringify({ guitar: guitarBrands[random(0, guitarBrands.length - 1)] }),
 });
 
+const genres = ['rock', 'folk', 'electronic', 'musical', 'pop', 'jazz', 'metal', 'dance', 'blues', 'country'];
+
 export const createEvent = (): Event => ({
-	cost: datatype.float(),
-	description: lorem.paragraphs(2),
-	created_at: randomDateTime(new Date(1030436120350), new Date(1633466120350)),
-	time: randomTime(),
+	id: uuid(),
+	cost: 1504.04,
+	description: `Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged.`,
+	created_at: randomDateTime(),
+	time: randomDateTime(),
 	tags: `tags
-${music.genre()}
-${music.genre()}
-${music.genre()}
+${genres[random(0, genres.length - 1)]}
+${genres[random(0, genres.length - 1)]}
+${genres[random(0, genres.length - 1)]}
 `,
 });
 
 export const createTour = (): Tour => ({
+	id: uuid(),
 	revenue: BigInt(getRandomInt(Number.MAX_SAFE_INTEGER)),
 });
 
 export const createGuest = (): Guest => ({
-	// id: uuid(),
-	birthday: randomDateTime(new Date(1030436120350), new Date(1633466120350)),
-	name: `${name.firstName()} ${name.lastName()}`,
-	earliest_events_to_show: randomTime(),
-	latest_events_to_show: randomTime(),
+	id: uuid(),
+	birthday: randomDateTime(),
+	name: randomName(),
+	earliest_events_to_show: randomDateTime(),
+	latest_events_to_show: randomDateTime(),
 	password: getRandomString(32),
-	shows_attended: datatype.number(),
+	shows_attended: random(1, 35),
 });
 
 export const createOrganizer = (): Organizer => ({
-	company_name: `${name.firstName()} ${name.lastName()}`,
+	id: uuid(),
+	company_name: randomName(),
 });
 
 export const createMany = (factory: (() => Item) | Record<string, any>, count: number, options?: CreateManyOptions) => {
@@ -171,25 +191,30 @@ export const createMany = (factory: (() => Item) | Record<string, any>, count: n
 	if (options && typeof factory !== 'object') {
 		for (let rows = 0; rows < count; rows++) {
 			const item: any = factory();
-			for (const [column, max] of Object.entries(options)) {
-				item[column] = getRandomInt(max);
+			for (const [column, value] of Object.entries(options)) {
+				if (typeof value === 'string') {
+					item[column] = value;
+				} else {
+					item[column] = value();
+				}
 			}
 			items.push(item);
 		}
-		return items;
-	}
-	if (options && typeof factory === 'object') {
-		for (let rows = 0; rows < count; rows++) {
-			const item: any = factory;
-			for (const [column, max] of Object.entries(options)) {
-				item[column] = getRandomInt(max);
-			}
-			items.push(item);
-		}
-		return items;
 	} else if (typeof factory !== 'object') {
 		for (let rows = 0; rows < count; rows++) {
 			items.push(factory());
+		}
+	} else {
+		for (let rows = 0; rows < count; rows++) {
+			const item: any = factory;
+			for (const [column, value] of Object.entries(options!)) {
+				if (typeof value === 'string') {
+					item[column] = value;
+				} else {
+					item[column] = value();
+				}
+				items.push(item);
+			}
 		}
 	}
 	return items;
@@ -203,13 +228,41 @@ function getRandomInt(max: number) {
 	return int;
 }
 
-function randomDateTime(start: Date, end: Date) {
-	return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
+function randomName() {
+	const firstNames = [
+		'James',
+		'Mary',
+		'Robert',
+		'Patricia',
+		'John',
+		'Jennifer',
+		'Michael',
+		'Linda',
+		'William',
+		'Elizabeth',
+		'David',
+		'Barbara',
+	];
+
+	const lastNames = [
+		'Smith',
+		'Johnson',
+		'Williams',
+		'Brown',
+		'Jones',
+		'Garcia',
+		'Miller',
+		'Davis',
+		'Rodriguez',
+		'Martinez',
+		'Hernandez',
+	];
+
+	return `${firstNames[random(0, firstNames.length - 1)]} ${lastNames[random(0, lastNames.length - 1)]}`;
 }
 
-function randomTime() {
-	const dateTime = randomDateTime(new Date(1030436120350), new Date(1633466120350)).toUTCString();
-	return dateTime.substring(17, 25);
+function randomDateTime(start = new Date(1030436120350), end = new Date(1633466120350)) {
+	return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
 }
 
 function getRandomString(length: number) {

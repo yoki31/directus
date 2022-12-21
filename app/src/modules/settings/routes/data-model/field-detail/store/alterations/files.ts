@@ -1,6 +1,7 @@
 import { StateUpdates, State, HelperFunctions } from '../types';
 import { set } from 'lodash';
-import { useCollectionsStore, useFieldsStore } from '@/stores';
+import { useCollectionsStore } from '@/stores/collections';
+import { useFieldsStore } from '@/stores/fields';
 
 export function applyChanges(updates: StateUpdates, state: State, helperFn: HelperFunctions) {
 	const { hasChanged } = helperFn;
@@ -9,7 +10,11 @@ export function applyChanges(updates: StateUpdates, state: State, helperFn: Help
 		removeSchema(updates);
 		setTypeToAlias(updates);
 		prepareRelation(updates, state);
-		setDefaults(updates, state);
+		setDefaults(updates, state, helperFn);
+	}
+
+	if (hasChanged('autoGenerateJunctionRelation')) {
+		setDefaults(updates, state, helperFn);
 	}
 
 	if (hasChanged('field.field')) {
@@ -38,7 +43,7 @@ export function applyChanges(updates: StateUpdates, state: State, helperFn: Help
 			'relations.o2m.field',
 			'relations.m2o.field',
 			'relations.m2o.related_collection',
-			'relations.o2m.meta?.sort_field',
+			'relations.o2m.meta.sort_field',
 		].some(hasChanged)
 	) {
 		generateCollections(updates, state, helperFn);
@@ -194,7 +199,7 @@ function generateFields(updates: StateUpdates, state: State, { getCurrent }: Hel
 			type: 'integer',
 			schema: {},
 			meta: {
-				hidden: true,
+				hidden: false,
 			},
 		});
 	} else {
@@ -202,7 +207,9 @@ function generateFields(updates: StateUpdates, state: State, { getCurrent }: Hel
 	}
 }
 
-export function setDefaults(updates: StateUpdates, state: State) {
+export function setDefaults(updates: StateUpdates, state: State, { getCurrent }: HelperFunctions) {
+	if (getCurrent('autoGenerateJunctionRelation') === false) return;
+
 	const fieldsStore = useFieldsStore();
 
 	const currentCollection = state.collection!;

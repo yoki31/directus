@@ -18,7 +18,7 @@
 			@update:model-value="setSort"
 		>
 			<template #item="{ element }">
-				<field-select :field="element" :fields="usableFields" @setNestedSort="setNestedSort" />
+				<field-select :field="element" :fields="usableFields" @set-nested-sort="setNestedSort" />
 			</template>
 		</draggable>
 
@@ -55,9 +55,9 @@ import { defineComponent, computed, toRefs } from 'vue';
 import { useCollection } from '@directus/shared/composables';
 import Draggable from 'vuedraggable';
 import { Field } from '@directus/shared/types';
-import { useFieldsStore } from '@/stores/';
+import { useFieldsStore } from '@/stores/fields';
 import FieldSelect from './field-select.vue';
-import hideDragImage from '@/utils/hide-drag-image';
+import { hideDragImage } from '@/utils/hide-drag-image';
 import { orderBy, isNil } from 'lodash';
 import { LocalType } from '@directus/shared/types';
 
@@ -190,9 +190,24 @@ export default defineComponent({
 .field-grid {
 	position: relative;
 	display: grid;
-	grid-gap: 8px;
 	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 	padding-bottom: 24px;
+}
+
+.field-select {
+	margin: 4px;
+}
+
+.field-select:deep(.field-grid) {
+	grid-gap: 0;
+}
+
+.field-select:deep(.field-grid.group.full.nested) {
+	margin: 4px 0;
+
+	.field-select {
+		margin: 4px;
+	}
 }
 
 .add-field {

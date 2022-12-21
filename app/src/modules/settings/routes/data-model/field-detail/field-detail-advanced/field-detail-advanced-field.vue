@@ -1,23 +1,29 @@
 <template>
 	<div class="form">
-		<div class="field half-left">
+		<div v-if="!isGenerated" class="field half-left">
 			<div class="label type-label">{{ t('readonly') }}</div>
 			<v-checkbox v-model="readonly" :label="t('disabled_editing_value')" block />
 		</div>
 
-		<div class="field half-right">
-			<div class="label type-label">{{ t('hidden') }}</div>
-			<v-checkbox v-model="hidden" :label="t('hidden_on_detail')" block />
-		</div>
-
-		<div class="field half-left">
+		<div v-if="!isGenerated" class="field half-right">
 			<div class="label type-label">{{ t('required') }}</div>
 			<v-checkbox v-model="required" :label="t('require_value_to_be_set')" block />
 		</div>
 
+		<div class="field half-left">
+			<div class="label type-label">{{ t('hidden') }}</div>
+			<v-checkbox v-model="hidden" :label="t('hidden_on_detail')" block />
+		</div>
+
 		<div v-if="type !== 'group'" class="field full">
 			<div class="label type-label">{{ t('note') }}</div>
-			<v-input v-model="note" :placeholder="t('add_note')" />
+			<v-skeleton-loader v-if="loading" />
+			<interface-system-input-translated-string
+				v-else
+				:value="note"
+				:placeholder="t('add_note')"
+				@input="note = $event"
+			/>
 		</div>
 
 		<div class="field full">
@@ -72,20 +78,16 @@ import { storeToRefs } from 'pinia';
 export default defineComponent({
 	setup() {
 		const { t } = useI18n();
-
 		const fieldDetailStore = useFieldDetailStore();
-
-		const readonly = syncFieldDetailStoreProperty('field.meta.readonly');
-		const hidden = syncFieldDetailStoreProperty('field.meta.hidden');
-		const required = syncFieldDetailStoreProperty('field.meta.required');
+		const readonly = syncFieldDetailStoreProperty('field.meta.readonly', false);
+		const hidden = syncFieldDetailStoreProperty('field.meta.hidden', false);
+		const required = syncFieldDetailStoreProperty('field.meta.required', false);
 		const note = syncFieldDetailStoreProperty('field.meta.note');
 		const translations = syncFieldDetailStoreProperty('field.meta.translations');
-
-		const { field } = storeToRefs(fieldDetailStore);
-
+		const { loading, field } = storeToRefs(fieldDetailStore);
 		const type = computed(() => field.value.type);
-
-		return { t, readonly, hidden, required, note, translations, type };
+		const isGenerated = computed(() => field.value.schema?.is_generated);
+		return { t, loading, readonly, hidden, required, note, translations, type, isGenerated };
 	},
 });
 </script>

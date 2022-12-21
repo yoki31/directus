@@ -1,4 +1,3 @@
-import axios from 'axios';
 import ms from 'ms';
 import { machineId } from 'node-machine-id';
 import os from 'os';
@@ -6,8 +5,11 @@ import os from 'os';
 import { version } from '../../package.json';
 import env from '../env';
 import logger from '../logger';
+import { toArray } from '@directus/shared/utils';
 
 export async function track(event: string): Promise<void> {
+	const axios = (await import('axios')).default;
+
 	if (env.TELEMETRY !== false) {
 		const info = await getEnvInfo(event);
 
@@ -55,7 +57,7 @@ async function getEnvInfo(event: string) {
 			transport: env.EMAIL_TRANSPORT,
 		},
 		auth: {
-			providers: env.AUTH_PROVIDERS.split(',')
+			providers: toArray(env.AUTH_PROVIDERS)
 				.map((v: string) => v.trim())
 				.filter((v: string) => v),
 		},
@@ -65,7 +67,7 @@ async function getEnvInfo(event: string) {
 
 function getStorageDrivers() {
 	const drivers: string[] = [];
-	const locations = env.STORAGE_LOCATIONS.split(',')
+	const locations = toArray(env.STORAGE_LOCATIONS)
 		.map((v: string) => v.trim())
 		.filter((v: string) => v);
 

@@ -2,7 +2,7 @@
 	<v-input
 		:model-value="modelValue"
 		db-safe
-		:nullable="false"
+		:nullable="nullable"
 		:disabled="disabled"
 		:placeholder="placeholder"
 		:class="{ matches: fieldExists }"
@@ -40,7 +40,7 @@
 <script lang="ts">
 import { defineComponent, computed, PropType } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useFieldsStore } from '@/stores';
+import { useFieldsStore } from '@/stores/fields';
 import { i18n } from '@/lang';
 
 export default defineComponent({
@@ -57,13 +57,25 @@ export default defineComponent({
 			type: String,
 			default: null,
 		},
+		disabledFields: {
+			type: Array as PropType<string[]>,
+			default: () => [],
+		},
 		typeDenyList: {
+			type: Array as PropType<string[]>,
+			default: () => [],
+		},
+		typeAllowList: {
 			type: Array as PropType<string[]>,
 			default: () => [],
 		},
 		placeholder: {
 			type: String,
 			default: () => i18n.global.t('foreign_key') + '...',
+		},
+		nullable: {
+			type: Boolean,
+			default: false,
 		},
 	},
 	emits: ['update:modelValue'],
@@ -77,7 +89,12 @@ export default defineComponent({
 			return fieldsStore.getFieldsForCollectionAlphabetical(props.collection).map((field) => ({
 				text: field.field,
 				value: field.field,
-				disabled: !field.schema || field.schema?.is_primary_key || props.typeDenyList.includes(field.type),
+				disabled:
+					!field.schema ||
+					!!field.schema?.is_primary_key ||
+					props.disabledFields.includes(field.field) ||
+					props.typeDenyList.includes(field.type) ||
+					!props.typeAllowList.includes(field.type),
 			}));
 		});
 

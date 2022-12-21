@@ -1,13 +1,14 @@
 import { Knex } from 'knex';
-import { nanoid } from 'nanoid';
 import runMigrations from '../../../database/migrations/run';
 import installDatabase from '../../../database/seeds/run';
 import env from '../../../env';
 import logger from '../../../logger';
 import { getSchema } from '../../../utils/get-schema';
 import { RolesService, UsersService, SettingsService } from '../../../services';
+
 import getDatabase, { isInstalled, validateDatabaseConnection, hasDatabaseConnection } from '../../../database';
-import { SchemaOverview } from '../../../types';
+import { SchemaOverview } from '@directus/shared/types';
+import { defaultAdminRole, defaultAdminUser } from '../../utils/defaults';
 
 export default async function bootstrap({ skipAdminInit }: { skipAdminInit?: boolean }): Promise<void> {
 	logger.info('Initializing bootstrap...');
@@ -63,9 +64,11 @@ async function waitForDatabase(database: Knex) {
 }
 
 async function createDefaultAdmin(schema: SchemaOverview) {
+	const { nanoid } = await import('nanoid');
+
 	logger.info('Setting up first admin role...');
 	const rolesService = new RolesService({ schema });
-	const role = await rolesService.createOne({ name: 'Admin', admin_access: true });
+	const role = await rolesService.createOne(defaultAdminRole);
 
 	logger.info('Adding first admin user...');
 	const usersService = new UsersService({ schema });
@@ -84,5 +87,5 @@ async function createDefaultAdmin(schema: SchemaOverview) {
 		logger.info(`No admin password provided. Defaulting to "${adminPassword}"`);
 	}
 
-	await usersService.createOne({ email: adminEmail, password: adminPassword, role });
+	await usersService.createOne({ email: adminEmail, password: adminPassword, role, ...defaultAdminUser });
 }

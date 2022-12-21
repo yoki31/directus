@@ -1,37 +1,38 @@
 import SchemaInspector from '@directus/schema';
+import { Filter, SchemaOverview } from '@directus/shared/types';
+import { parseJSON, toArray } from '@directus/shared/utils';
 import { Knex } from 'knex';
 import { mapValues } from 'lodash';
-import { appAccessMinimalPermissions } from '../database/system-data/app-access-permissions';
+import { getSystemCache, setSystemCache } from '../cache';
+import { ALIAS_TYPES } from '../constants';
+import getDatabase from '../database';
 import { systemCollectionRows } from '../database/system-data/collections';
 import { systemFieldRows } from '../database/system-data/fields';
+import env from '../env';
 import logger from '../logger';
 import { RelationsService } from '../services';
-import { SchemaOverview } from '../types';
-import { Accountability, Permission } from '@directus/shared/types';
-import { toArray } from '@directus/shared/utils';
 import getDefaultValue from './get-default-value';
 import getLocalType from './get-local-type';
-import { mergePermissions } from './merge-permissions';
-import getDatabase from '../database';
-import { getCache } from '../cache';
-import env from '../env';
-import ms from 'ms';
 
 export async function getSchema(options?: {
-	accountability?: Accountability;
 	database?: Knex;
+
+	/**
+	 * To bypass any cached schema if bypassCache is enabled.
+	 * Used to ensure schema snapshot/apply is not using outdated schema
+	 */
+	bypassCache?: boolean;
 }): Promise<SchemaOverview> {
 	const database = options?.database || getDatabase();
 	const schemaInspector = SchemaInspector(database);
-	const { schemaCache } = getCache();
 
 	let result: SchemaOverview;
 
-	if (env.CACHE_SCHEMA !== false && schemaCache) {
+	if (!options?.bypassCache && env.CACHE_SCHEMA !== false) {
 		let cachedSchema;
 
 		try {
-			cachedSchema = (await schemaCache.get('schema')) as SchemaOverview;
+			cachedSchema = (await getSystemCache('schema')) as SchemaOverview;
 		} catch (err: any) {
 			logger.warn(err, `[schema-cache] Couldn't retrieve cache. ${err}`);
 		}
@@ -42,11 +43,7 @@ export async function getSchema(options?: {
 			result = await getDatabaseSchema(database, schemaInspector);
 
 			try {
-				await schemaCache.set(
-					'schema',
-					result,
-					typeof env.CACHE_SCHEMA === 'string' ? ms(env.CACHE_SCHEMA) : undefined
-				);
+				await setSystemCache('schema', result);
 			} catch (err: any) {
 				logger.warn(err, `[schema-cache] Couldn't save cache. ${err}`);
 			}
@@ -54,52 +51,6 @@ export async function getSchema(options?: {
 	} else {
 		result = await getDatabaseSchema(database, schemaInspector);
 	}
-
-	let permissions: Permission[] = [];
-
-	if (options?.accountability && options.accountability.admin !== true) {
-		const permissionsForRole = await database
-			.select('*')
-			.from('directus_permissions')
-			.where({ role: options.accountability.role });
-
-		permissions = permissionsForRole.map((permissionRaw) => {
-			if (permissionRaw.permissions && typeof permissionRaw.permissions === 'string') {
-				permissionRaw.permissions = JSON.parse(permissionRaw.permissions);
-			} else if (permissionRaw.permissions === null) {
-				permissionRaw.permissions = {};
-			}
-
-			if (permissionRaw.validation && typeof permissionRaw.validation === 'string') {
-				permissionRaw.validation = JSON.parse(permissionRaw.validation);
-			} else if (permissionRaw.validation === null) {
-				permissionRaw.validation = {};
-			}
-
-			if (permissionRaw.presets && typeof permissionRaw.presets === 'string') {
-				permissionRaw.presets = JSON.parse(permissionRaw.presets);
-			} else if (permissionRaw.presets === null) {
-				permissionRaw.presets = {};
-			}
-
-			if (permissionRaw.fields && typeof permissionRaw.fields === 'string') {
-				permissionRaw.fields = permissionRaw.fields.split(',');
-			} else if (permissionRaw.fields === null) {
-				permissionRaw.fields = [];
-			}
-
-			return permissionRaw;
-		});
-
-		if (options.accountability.app === true) {
-			permissions = mergePermissions(
-				permissions,
-				appAccessMinimalPermissions.map((perm) => ({ ...perm, role: options.accountability!.role }))
-			);
-		}
-	}
-
-	result.permissions = permissions;
 
 	return result;
 }
@@ -111,7 +62,6 @@ async function getDatabaseSchema(
 	const result: SchemaOverview = {
 		collections: {},
 		relations: [],
-		permissions: [],
 	};
 
 	const schemaOverview = await schemaInspector.overview();
@@ -154,12 +104,14 @@ async function getDatabaseSchema(
 					field: column.column_name,
 					defaultValue: getDefaultValue(column) ?? null,
 					nullable: column.is_nullable ?? true,
-					type: getLocalType(column).type,
+					generated: column.is_generated ?? false,
+					type: getLocalType(column),
 					dbType: column.data_type,
 					precision: column.numeric_precision || null,
 					scale: column.numeric_scale || null,
 					special: [],
 					note: null,
+					validation: null,
 					alias: false,
 				};
 			}),
@@ -168,13 +120,16 @@ async function getDatabaseSchema(
 
 	const fields = [
 		...(await database
-			.select<{ id: number; collection: string; field: string; special: string; note: string | null }[]>(
-				'id',
-				'collection',
-				'field',
-				'special',
-				'note'
-			)
+			.select<
+				{
+					id: number;
+					collection: string;
+					field: string;
+					special: string;
+					note: string | null;
+					validation: string | Record<string, any> | null;
+				}[]
+			>('id', 'collection', 'field', 'special', 'note', 'validation')
 			.from('directus_fields')),
 		...systemFieldRows,
 	].filter((field) => (field.special ? toArray(field.special) : []).includes('no-data') === false);
@@ -185,12 +140,19 @@ async function getDatabaseSchema(
 		const existing = result.collections[field.collection].fields[field.field];
 		const column = schemaOverview[field.collection].columns[field.field];
 		const special = field.special ? toArray(field.special) : [];
-		const { type = 'alias' } = existing && column ? getLocalType(column, { special }) : {};
+
+		if (ALIAS_TYPES.some((type) => special.includes(type)) === false && !existing) continue;
+
+		const type = (existing && getLocalType(column, { special })) || 'alias';
+		let validation = field.validation ?? null;
+
+		if (validation && typeof validation === 'string') validation = parseJSON(validation);
 
 		result.collections[field.collection].fields[field.field] = {
 			field: field.field,
 			defaultValue: existing?.defaultValue ?? null,
 			nullable: existing?.nullable ?? true,
+			generated: existing?.generated ?? false,
 			type: type,
 			dbType: existing?.dbType || null,
 			precision: existing?.precision || null,
@@ -198,6 +160,7 @@ async function getDatabaseSchema(
 			special: special,
 			note: field.note,
 			alias: existing?.alias ?? true,
+			validation: (validation as Filter) ?? null,
 		};
 	}
 

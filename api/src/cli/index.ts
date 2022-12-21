@@ -1,12 +1,14 @@
 import { Command, Option } from 'commander';
 import { startServer } from '../server';
-import { emitAsyncSafe } from '../emitter';
+import emitter from '../emitter';
 import { getExtensionManager } from '../extensions';
 import bootstrap from './commands/bootstrap';
 import count from './commands/count';
 import dbInstall from './commands/database/install';
 import dbMigrate from './commands/database/migrate';
 import init from './commands/init';
+import keyGenerate from './commands/security/key';
+import secretGenerate from './commands/security/secret';
 import rolesCreate from './commands/roles/create';
 import usersCreate from './commands/users/create';
 import usersPasswd from './commands/users/passwd';
@@ -20,15 +22,20 @@ export async function createCli(): Promise<Command> {
 
 	const extensionManager = getExtensionManager();
 
-	await extensionManager.initialize({ schedule: false });
+	await extensionManager.initialize({ schedule: false, watch: false });
 
-	await emitAsyncSafe('cli.init.before', { program });
+	await emitter.emitInit('cli.before', { program });
 
 	program.name('directus').usage('[command] [options]');
 	program.version(pkg.version, '-v, --version');
 
 	program.command('start').description('Start the Directus API').action(startServer);
 	program.command('init').description('Create a new Directus Project').action(init);
+
+	// Security
+	const securityCommand = program.command('security');
+	securityCommand.command('key:generate').description('Generate the app key').action(keyGenerate);
+	securityCommand.command('secret:generate').description('Generate the app secret').action(secretGenerate);
 
 	const dbCommand = program.command('database');
 	dbCommand.command('install').description('Install the database').action(dbInstall);
@@ -85,17 +92,18 @@ export async function createCli(): Promise<Command> {
 		.description('Create a new Schema Snapshot')
 		.option('-y, --yes', `Assume "yes" as answer to all prompts and run non-interactively`, false)
 		.addOption(new Option('--format <format>', 'JSON or YAML format').choices(['json', 'yaml']).default('yaml'))
-		.argument('<path>', 'Path to snapshot file')
+		.argument('[path]', 'Path to snapshot file')
 		.action(snapshot);
 
 	schemaCommands
 		.command('apply')
 		.description('Apply a snapshot file to the current database')
 		.option('-y, --yes', `Assume "yes" as answer to all prompts and run non-interactively`)
+		.option('-d, --dry-run', 'Plan and log changes to be applied', false)
 		.argument('<path>', 'Path to snapshot file')
 		.action(apply);
 
-	await emitAsyncSafe('cli.init.after', { program });
+	await emitter.emitInit('cli.after', { program });
 
 	return program;
 }

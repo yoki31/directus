@@ -1,16 +1,16 @@
 import api from '@/api';
 import { i18n } from '@/lang';
 import { Collection as CollectionRaw, DeepPartial, Field } from '@directus/shared/types';
-import { Collection } from '@/types';
+import { Collection } from '@/types/collections';
 import { getCollectionType } from '@directus/shared/utils';
-import { notEmpty } from '@/utils/is-empty/';
 import { notify } from '@/utils/notify';
+import { getLiteralInterpolatedTranslation } from '@/utils/get-literal-interpolated-translation';
 import { unexpectedError } from '@/utils/unexpected-error';
 import formatTitle from '@directus/format-title';
 import { defineStore } from 'pinia';
 import { COLLECTIONS_DENY_LIST } from '@/constants';
-import { isEqual, orderBy, omit } from 'lodash';
-import { useFieldsStore } from '.';
+import { isEqual, orderBy, omit, isNil } from 'lodash';
+import { useRelationsStore } from './relations';
 
 export const useCollectionsStore = defineStore({
 	id: 'collectionsStore',
@@ -21,10 +21,13 @@ export const useCollectionsStore = defineStore({
 		visibleCollections(): Collection[] {
 			return this.collections
 				.filter(({ collection }) => collection.startsWith('directus_') === false)
-				.filter((collection) => collection.meta?.hidden !== true);
+				.filter((collection) => collection.meta && collection.meta?.hidden !== true);
 		},
 		allCollections(): Collection[] {
 			return this.collections.filter(({ collection }) => collection.startsWith('directus_') === false);
+		},
+		databaseCollections(): Collection[] {
+			return this.allCollections.filter((collection) => collection.schema);
 		},
 		crudSafeSystemCollections(): Collection[] {
 			return orderBy(
@@ -50,20 +53,43 @@ export const useCollectionsStore = defineStore({
 			let name = formatTitle(collection.collection);
 			const type = getCollectionType(collection);
 
-			if (collection.meta && notEmpty(collection.meta.translations)) {
+			const localesToKeep =
+				collection.meta && !isNil(collection.meta.translations) && Array.isArray(collection.meta.translations)
+					? collection.meta.translations.map((translation) => translation.language)
+					: [];
+
+			for (const locale of i18n.global.availableLocales) {
+				if (i18n.global.te(`collection_names.${collection.collection}`, locale) && !localesToKeep.includes(locale)) {
+					i18n.global.mergeLocaleMessage(locale, { collection_names: { [collection.collection]: undefined } });
+				}
+			}
+
+			if (collection.meta && !isNil(collection.meta.translations) && Array.isArray(collection.meta.translations)) {
 				for (let i = 0; i < collection.meta.translations.length; i++) {
 					const { language, translation, singular, plural } = collection.meta.translations[i];
 
 					i18n.global.mergeLocaleMessage(language, {
-						collection_names: {
-							[collection.collection]: translation,
-						},
-						collection_names_singular: {
-							[collection.collection]: singular,
-						},
-						collection_names_plural: {
-							[collection.collection]: plural,
-						},
+						...(translation
+							? {
+									collection_names: {
+										[collection.collection]: getLiteralInterpolatedTranslation(translation),
+									},
+							  }
+							: {}),
+						...(singular
+							? {
+									collection_names_singular: {
+										[collection.collection]: getLiteralInterpolatedTranslation(singular),
+									},
+							  }
+							: {}),
+						...(plural
+							? {
+									collection_names_plural: {
+										[collection.collection]: getLiteralInterpolatedTranslation(plural),
+									},
+							  }
+							: {}),
 					});
 				}
 			}
@@ -93,7 +119,6 @@ export const useCollectionsStore = defineStore({
 			});
 		},
 		async upsertCollection(collection: string, values: DeepPartial<Collection & { fields: Field[] }>) {
-			const fieldsStore = useFieldsStore();
 			const existing = this.getCollection(collection);
 
 			// Strip out any fields the app might've auto-generated at some point
@@ -122,8 +147,6 @@ export const useCollectionsStore = defineStore({
 				}
 			} catch (err: any) {
 				unexpectedError(err);
-			} finally {
-				await fieldsStore.hydrate();
 			}
 		},
 		async updateCollection(collection: string, updates: DeepPartial<Collection>) {
@@ -131,7 +154,6 @@ export const useCollectionsStore = defineStore({
 				await api.patch(`/collections/${collection}`, updates);
 				await this.hydrate();
 				notify({
-					type: 'success',
 					title: i18n.global.t('update_collection_success'),
 				});
 			} catch (err: any) {
@@ -139,11 +161,13 @@ export const useCollectionsStore = defineStore({
 			}
 		},
 		async deleteCollection(collection: string) {
+			const relationsStore = useRelationsStore();
+
 			try {
 				await api.delete(`/collections/${collection}`);
-				await this.hydrate();
+				await Promise.all([this.hydrate(), relationsStore.hydrate()]);
+
 				notify({
-					type: 'success',
 					title: i18n.global.t('delete_collection_success'),
 				});
 			} catch (err: any) {

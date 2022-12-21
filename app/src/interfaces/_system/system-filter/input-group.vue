@@ -1,61 +1,66 @@
 <template>
+	<template v-if="['_eq', '_neq', '_lt', '_gt', '_lte', '_gte'].includes(comparator)">
+		<input-component
+			:is="interfaceType"
+			:choices="choices"
+			:type="fieldInfo?.type ?? 'unknown'"
+			:value="value"
+			@input="value = $event"
+		/>
+	</template>
 	<template
-		v-if="
+		v-else-if="
 			[
-				'_eq',
-				'_neq',
-				'_lt',
-				'_gt',
-				'_lte',
-				'_gte',
 				'_contains',
 				'_ncontains',
+				'_icontains',
 				'_starts_with',
 				'_nstarts_with',
 				'_ends_with',
 				'_nends_with',
-			].includes(getComparator(field))
+				'_regex',
+			].includes(comparator)
 		"
 	>
 		<input-component
-			:is="interfaceType"
-			:choices="fieldInfo.meta?.options?.choices"
-			:type="fieldInfo.type"
+			is="interface-input"
+			:choices="choices"
+			:type="fieldInfo?.type ?? 'unknown'"
 			:value="value"
 			@input="value = $event"
 		/>
 	</template>
 
 	<div
-		v-else-if="['_in', '_nin'].includes(getComparator(field))"
+		v-else-if="['_in', '_nin'].includes(comparator)"
 		class="list"
 		:class="{ moveComma: interfaceType === 'interface-input' }"
 	>
 		<div v-for="(val, index) in value" :key="index" class="value">
 			<input-component
 				:is="interfaceType"
-				:type="fieldInfo.type"
+				:type="fieldInfo?.type ?? 'unknown'"
 				:value="val"
 				:focus="false"
-				:choices="fieldInfo.meta?.options?.choices"
-				@input="setValueAt(index, $event)"
+				:choices="choices"
+				@input="setListValue(index, $event)"
 			/>
 		</div>
 	</div>
 
-	<template v-else-if="['_between', '_nbetween'].includes(getComparator(field))" class="between">
+	<template v-else-if="['_between', '_nbetween'].includes(comparator)">
 		<input-component
 			:is="interfaceType"
-			:choices="fieldInfo.meta?.options?.choices"
-			:type="fieldInfo.type"
+			:choices="choices"
+			:type="fieldInfo?.type ?? 'unknown'"
 			:value="value[0]"
 			@input="setValueAt(0, $event)"
 		/>
 		<div class="and">{{ t('interfaces.filter.and') }}</div>
 		<input-component
 			:is="interfaceType"
-			:choices="fieldInfo.meta?.options?.choices"
-			:type="fieldInfo.type"
+			:choices="choices"
+			:type="fieldInfo?.type ?? 'unknown'"
 			:value="value[1]"
 			@input="setValueAt(1, $event)"
 		/>
@@ -64,12 +69,13 @@
 
 <script lang="ts">
 import { computed, defineComponent, PropType } from 'vue';
-import { useFieldsStore } from '@/stores';
+import { useFieldsStore } from '@/stores/fields';
 import { useI18n } from 'vue-i18n';
 import { clone, get } from 'lodash';
 import InputComponent from './input-component.vue';
 import { FieldFilter } from '@directus/shared/types';
 import { fieldToFilter, getComparator, getField } from './utils';
+import { useRelationsStore } from '@/stores/relations';
 
 export default defineComponent({
 	components: { InputComponent },
@@ -86,10 +92,25 @@ export default defineComponent({
 	emits: ['update:field'],
 	setup(props, { emit }) {
 		const fieldsStore = useFieldsStore();
+		const relationsStore = useRelationsStore();
 		const { t } = useI18n();
 
 		const fieldInfo = computed(() => {
-			return fieldsStore.getField(props.collection, getField(props.field));
+			const fieldInfo = fieldsStore.getField(props.collection, getField(props.field));
+
+			// Alias uses the foreign key type
+			if (fieldInfo?.type === 'alias') {
+				const relations = relationsStore.getRelationsForField(props.collection, getField(props.field));
+				if (relations[0]) {
+					return fieldsStore.getField(relations[0].collection, relations[0].field);
+				}
+			}
+
+			return fieldInfo;
+		});
+
+		const comparator = computed(() => {
+			return getComparator(props.field);
 		});
 
 		const interfaceType = computed(() => {
@@ -121,10 +142,9 @@ export default defineComponent({
 		const value = computed<any | any[]>({
 			get() {
 				const fieldPath = getField(props.field);
-				const comparator = getComparator(props.field);
 
-				const value = get(props.field, `${fieldPath}.${comparator}`);
-				if (['_in', '_nin'].includes(getComparator(props.field))) {
+				const value = get(props.field, `${fieldPath}.${comparator.value}`);
+				if (['_in', '_nin'].includes(comparator.value)) {
 					return [...(value as string[]).filter((val) => val !== null && val !== ''), null];
 				} else {
 					return value;
@@ -132,18 +152,23 @@ export default defineComponent({
 			},
 			set(newVal) {
 				const fieldPath = getField(props.field);
-				const comparator = getComparator(props.field);
 
 				let value;
 
-				if (['_in', '_nin'].includes(comparator)) {
-					value = (newVal as string[]).filter((val) => val !== null && val !== '');
+				if (['_in', '_nin'].includes(comparator.value)) {
+					value = (newVal as string[])
+						.flatMap((val) => (typeof val === 'string' ? val.split(',').map((v) => v.trim()) : ''))
+						.filter((val) => val !== null && val !== '');
 				} else {
 					value = newVal;
 				}
-				emit('update:field', fieldToFilter(fieldPath, comparator, value));
+				emit('update:field', fieldToFilter(fieldPath, comparator.value, value));
 			},
 		});
+
+		const choices = computed(() => fieldInfo.value?.meta?.options?.choices ?? []);
+
+		return { t, choices, fieldInfo, interfaceType, value, comparator, setValueAt, getComparator, setListValue };
 
 		function setValueAt(index: number, newVal: any) {
 			let newArray = Array.isArray(value.value) ? clone(value.value) : new Array(index + 1);
@@ -151,7 +176,16 @@ export default defineComponent({
 			value.value = newArray;
 		}
 
-		return { t, fieldInfo, interfaceType, value, setValueAt, getComparator };
+		function setListValue(index: number, newVal: any) {
+			if (typeof newVal === 'string' && newVal.includes(',')) {
+				const parts = newVal.split(',');
+				for (let i = 0; i < parts.length; i++) {
+					setValueAt(index + i, parts[i]);
+				}
+			} else {
+				setValueAt(index, newVal);
+			}
+		}
 	},
 });
 </script>

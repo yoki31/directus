@@ -1,31 +1,35 @@
 <template>
 	<div>
-		<v-fancy-select v-model="interfaceID" class="select" :items="selectItems" />
+		<v-skeleton-loader v-if="loading" />
+		<v-fancy-select v-else v-model="interfaceId" class="select" :items="selectItems" />
 
-		<v-notice v-if="interfaceID && !selectedInterface" class="not-found" type="danger">
-			{{ t('interface_not_found', { interface: interfaceID }) }}
-			<div class="spacer" />
-			<button @click="interfaceID = null">{{ t('reset_interface') }}</button>
-		</v-notice>
+		<v-skeleton-loader v-if="loading" />
+		<template v-else>
+			<v-notice v-if="interfaceId && !selectedInterface" class="not-found" type="danger">
+				{{ t('interface_not_found', { interface: interfaceId }) }}
+				<div class="spacer" />
+				<button @click="interfaceId = null">{{ t('reset_interface') }}</button>
+			</v-notice>
 
-		<extension-options
-			v-if="interfaceID && selectedInterface"
-			type="interface"
-			:extension="interfaceID"
-			show-advanced
-		/>
+			<extension-options
+				v-if="interfaceId && selectedInterface"
+				v-model="options"
+				type="interface"
+				:options="customOptionsFields"
+				:extension="interfaceId"
+				show-advanced
+			/>
+		</template>
 	</div>
 </template>
 
 <script lang="ts">
 import { useI18n } from 'vue-i18n';
 import { defineComponent, computed } from 'vue';
-import { getInterfaces } from '@/interfaces';
-import { FancySelectItem } from '@/components/v-fancy-select/types';
-import { InterfaceConfig } from '@directus/shared/types';
 import { useFieldDetailStore, syncFieldDetailStoreProperty } from '../store/';
 import { storeToRefs } from 'pinia';
 import ExtensionOptions from '../shared/extension-options.vue';
+import { useExtension } from '@/composables/use-extension';
 
 export default defineComponent({
 	components: { ExtensionOptions },
@@ -34,13 +38,10 @@ export default defineComponent({
 
 		const fieldDetailStore = useFieldDetailStore();
 
-		const interfaceID = syncFieldDetailStoreProperty('field.meta.interface');
-		const options = syncFieldDetailStoreProperty('field.meta.options');
+		const interfaceId = syncFieldDetailStoreProperty('field.meta.interface');
 
-		const { field, interfacesForType } = storeToRefs(fieldDetailStore);
+		const { loading, field, interfacesForType } = storeToRefs(fieldDetailStore);
 		const type = computed(() => field.value.type);
-
-		const { interfaces } = getInterfaces();
 
 		const selectItems = computed(() => {
 			const recommendedInterfacesPerType: { [type: string]: string[] } = {
@@ -96,11 +97,31 @@ export default defineComponent({
 			return recommendedItems;
 		});
 
-		const selectedInterface = computed(() => {
-			return interfaces.value.find((inter: InterfaceConfig) => inter.id === interfaceID.value);
+		const selectedInterface = useExtension('interface', interfaceId);
+
+		const customOptionsFields = computed(() => {
+			if (typeof selectedInterface.value?.options === 'function') {
+				return selectedInterface.value?.options(fieldDetailStore);
+			}
+
+			return null;
 		});
 
-		return { t, selectItems, selectedInterface, interfaceID, options };
+		const options = computed({
+			get() {
+				return fieldDetailStore.field.meta?.options ?? {};
+			},
+			set(newOptions: Record<string, any>) {
+				fieldDetailStore.$patch((state) => {
+					state.field.meta = {
+						...(state.field.meta ?? {}),
+						options: newOptions,
+					};
+				});
+			},
+		});
+
+		return { t, loading, selectItems, selectedInterface, interfaceId, customOptionsFields, options };
 	},
 });
 </script>
@@ -121,7 +142,8 @@ export default defineComponent({
 	}
 }
 
-.v-notice {
+.v-notice,
+.v-skeleton-loader {
 	margin-bottom: 36px;
 }
 </style>

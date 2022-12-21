@@ -19,26 +19,63 @@
 #'Int32Array', 'Uint32Array', 'Float32Array', 'Float64Array', 'Map', 'Set', 'WeakMap', 'WeakSet',
 #'SIMD', 'ArrayBuffer', 'DataView', 'JSON', 'Promise', 'Generator', 'GeneratorFunction', 'Reflect',
 #'Proxy', 'Intl'
+identifier: 識別子
 avatar: プロフィール画像
+application: アプリケーション
+default_provider: デフォルト
+method: 方法
+published: 公開済み
+draft: 下書き
+archived: アーカイブ済み
+modules: モジュール
+module_bar: モジュールバー
+logs: ログ
+tile_size: タイルサイズ
 edit_field: フィールドの編集
+conditions: 条件
+location: 場所
+input: 入力
+maps: 地図
+switch_user: ユーザーを切り替える
+item_creation: アイテム作成
 item_revision: 履歴
+enter_a_name: 名前を入力...
+duplicate_field: フィールドを重複
+half_width: 半値幅
 full_width: 最大幅
+group: グループ
+export_items: アイテムをエクスポート
+and: そして
+or: または
+custom: カスタム
+fill_width: 幅埋め
 field_name_translations: 項目名の翻訳を追加する
+enter_password_to_enable_tfa: 二段階認証を使用するためパスワードを入力してください
 add_field: フィールドの追加
 role_name: 権限名
+branch: 分岐
+leaf: リーフ
+indeterminate: 不確定
+edit_collection: コレクションを編集
+db_only_click_to_configure: 'データベースのみ: クリックして設定する'
+show_active_items: アクティブアイテムを表示
+show_archived_items: アーカイブ済みアイテムを表示
+show_all_items: 全て表示
 required: 必須
 requires_value: この項目は必須です
 create_preset: プリセットの作成
 create_role: 権限作成
 create_user: ユーザーの作成
+message: メッセージ
 create_webhook: Webhookの作成
 invite_users: ユーザーを招待
 invite: 招待する
+email_already_invited: このメールアドレス ({email}) は招待済みです
+inbox: 受信トレイ
 emails: メールアドレス
 rename_folder: フォルダ名の変更
 delete_folder: フォルダーの削除
 reset_bookmark: ブックマークをリセット
-rename_bookmark: ブックマークの名前を変更
 update_bookmark: ブックマークを更新
 delete_bookmark: ブックマークを削除
 delete_bookmark_copy: >-
@@ -46,12 +83,17 @@ delete_bookmark_copy: >-
 logoutReason:
   SIGN_OUT: ログアウト
   SESSION_EXPIRED: セッションが期限切れです
+public_description: 認証せずに利用できる API データを制御します。
 not_allowed: 許可されていない
 directus_version: Directus Version
 os_version: OSバージョン
 archive: アーカイブ
+archive_confirm: この項目をアーカイブしてよろしいですか？
 recommended_defaults: 推奨されるデフォルト値
 validationError:
+  eq: 値は {valid} でなければなりません
+  neq: 値は {invalid} にすることはできません
+  in: 値は {valid} のいずれかでなければなりません
   required: 必須項目です
   unique: 他と重複しない値である必要があります
 no_access: アクセスなし
@@ -64,7 +106,12 @@ delete_field: フィールドを削除
 fields_and_layout: 項目とレイアウト
 language: 言語
 camera: カメラ
+min: 最小
+max: 最大
+exposure: 露出度
+shutter: シャッター
 iso: ISO
+focal_length: レンズ焦点距離
 schema_setup_key: この項目はデータベースの列名及びAPIキーとして使用されます
 create_field: 新規項目の追加
 hidden_on_detail: 詳細に表示しない
@@ -84,9 +131,15 @@ time: 時刻
 timestamp: Timestamp
 uuid: UUID
 hash: ハッシュ値
+auto_refresh: 自動更新
+refresh_interval: 更新間隔
 auto_generate: 自動生成
 click_here: ここをクリック
 to_manually_setup_translations: 独自の翻訳を設定することができます
+click_to_manage_translated_fields: >-
+  翻訳されたフィールドはまだありません。ここをクリックして作成してください。| 翻訳されたフィールドが1つあります。 ここをクリックして管理します。| {count} 項が翻訳されています。ここをクリックして管理します。
+fields_group: フィールドグループ
+no_collections_found: コレクションが見つかりません
 new_field: '新規フィールド'
 new_collection: '新しいコレクション'
 add_note: ユーザーに有益な注釈を追加...
@@ -96,6 +149,7 @@ multiple_files: 複数のファイル
 next: 次
 field_name: 項目名
 translations: 翻訳
+no_translations: 翻訳なし
 note: 備考
 enter_a_value: 値を入力...
 length: 長さ
@@ -105,9 +159,6 @@ updated_on: 更新日時
 updated_by: 最後に更新したユーザー
 primary_key: プライマリーキー
 raw_value: 値を加工しない
-clear_value: 値の削除
-reset_to_default: 初期化
-undo_changes: 変更を元に戻す
 notifications: 通知
 page_not_found: ページが見つかりませんでした
 page_not_found_body: お探しのページは存在しません。
@@ -123,6 +174,8 @@ this_collection: このコレクション
 related_collection: 関連するコレクション
 related_collections: 関連するコレクション
 languages_collection: 言語コレクション
+label_import: インポート
+import_export: インポート / エクスポート
 format: 書式
 last_access: 最後にアクセスした日時
 a_unique_table_name: 重複しない名前をつけてください
@@ -133,6 +186,11 @@ move: 移動
 today: 今日
 yesterday: 昨日
 delete_comment: コメントの削除
+functions:
+  year: 年
+  month: 月
+minutes: 分
+hours: 時間
 month: 月
 year: 年
 select_all: すべて
@@ -149,7 +207,9 @@ months:
   october: 10月
   november: 11月
   december: 12月
+cancel_crop: トリミングをキャンセル
 url: URL
+import_label: インポート
 file_details: ファイルの詳細
 size: サイズ
 modified: 修正されました
@@ -198,6 +258,7 @@ no_collections: コレクションがありません
 create_collection: コレクションを作成する
 no_collections_copy_admin: まだコレクションを作成していません。下のボタンをクリックして新しいコレクションを作成しましょう。
 copy: コピー
+no_other_dashboards_copy: 他のダッシュボードはまだありません。
 users: ユーザー
 activity: 操作履歴
 ip_address: IPアドレス
@@ -236,6 +297,7 @@ unexpected_error: 予期しないエラーが発生しました
 back: 戻る
 rotate: 回転
 all_users: すべてのユーザー
+goto_collection_content: コンテンツを表示
 one_item: '1 つのアイテム'
 icon_left: 左側に表示するアイコン
 icon_right: 右側に表示するアイコン
@@ -278,6 +340,15 @@ on_update: 更新時
 read: 読取り
 update: 更新
 select_fields: 入力欄の選択
+flow_name: 名前
+dashboard: ダッシュボード
+dashboard_delete_confirm: このダッシュボードを削除してよろしいですか？この操作を取り消すことはできません。
+edit_dashboard: ダッシュボードを編集
+delete_dashboard: ダッシュボードを削除
+no_dashboards: ダッシュボードがありません
+no_dashboards_copy: ダッシュボードが作成されていません。
+create_dashboard: ダッシュボードを作成
+dashboard_name: ダッシュボード名
 full_screen: 全画面表示
 width: 幅
 height: 高さ
@@ -325,6 +396,7 @@ batch_delete_confirm: >-
   項目が選択されていません | この項目を削除してよろしいですか？この操作を取り消すことはできません。 | これら {count} 個の項目を削除してもよろしいですか？ この操作を取り消すことはできません。
 cancel: キャンセル
 collections: コレクション
+content: コンテンツ
 singleton: シングルトン
 singleton_label: シングルオブジェクトに設定する
 fields:
@@ -332,6 +404,7 @@ fields:
     comment: コメント
     user_agent: ユーザーエージェント
     ip: IPアドレス
+    revisions: 履歴
   directus_collections:
     icon: アイコン
     note: 備考
@@ -375,6 +448,10 @@ fields:
     project_url: プロジェクトの URL
     project_color: プロジェクトの色
     project_logo: プロジェクトのロゴ
+    module_bar: モジュールバー
+  directus_shares:
+    name: 名前
+    password: パスワード
   directus_fields:
     note: 備考
     hidden: 非表示
@@ -388,6 +465,8 @@ fields:
   directus_webhooks:
     name: 名前
     status: ステータス
+    value: 値
+    collections: コレクション
 field_options:
   directus_activity:
     create: 作成
@@ -403,13 +482,12 @@ field_options:
     fields:
       icon_name: アイコン
       name_name: 名前
-    collection_list:
-      fields:
-        type_name: タイプ
     collections_name: コレクション
   directus_webhooks:
     actions_create: 作成
     actions_update: 更新
+    headers:
+      value: 値
 no_fields_in_collection: 'まだ「{collection}」にフィールドがありません'
 do_nothing: 何もしない
 save_current_user_role: 現在のユーザーロールを保存
@@ -444,6 +522,7 @@ permissions: 許可
 relationship: 関連
 reset: リセット
 reset_password: パスワードリセット
+revisions: 履歴
 revert: 元に戻す
 save: 保存
 schema: スキーマ
@@ -458,6 +537,7 @@ something_went_wrong: 問題が発生しました
 sort_direction: ソート順
 translation: 翻訳
 value: 値
+table: テーブル
 interfaces:
   filter:
     all: すべて
@@ -479,12 +559,16 @@ interfaces:
     icon: アイコン
   system-folder:
     folder: フォルダ
+  list:
+    sort: 並べ替え
   tags:
     tags: タグ
   translations:
     no_collection: コレクションがありません
   user:
     user: ユーザー
+  system-token:
+    system-token: トークン
 displays:
   translations:
     translations: 翻訳
@@ -498,6 +582,12 @@ displays:
     file: ファイル
   filesize:
     filesize: ファイルサイズ
+  formatted-value:
+    format: 書式
+    font: フォント
+    color: 色
+    icon: アイコン
+    text: テキスト
   icon:
     icon: アイコン
   labels:
@@ -515,8 +605,15 @@ layouts:
     subtitle: サブタイトル
   tabular:
     tabular: テーブル
-    fields: 入力欄
     spacing: 間隔
     comfortable: 広め
     compact: コンパクト
     cozy: 普通
+operations:
+  log:
+    message: メッセージ
+  notification:
+    recipient: ユーザー
+    message: メッセージ
+  request:
+    url: URL

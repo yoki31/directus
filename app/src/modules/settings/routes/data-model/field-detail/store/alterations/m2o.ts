@@ -1,9 +1,10 @@
 import { StateUpdates, State, HelperFunctions } from '../types';
 import { set } from 'lodash';
-import { useCollectionsStore, useFieldsStore } from '@/stores';
+import { useCollectionsStore } from '@/stores/collections';
+import { useFieldsStore } from '@/stores/fields';
 
 export function applyChanges(updates: StateUpdates, state: State, helperFn: HelperFunctions) {
-	const { hasChanged } = helperFn;
+	const { hasChanged, getCurrent } = helperFn;
 
 	if (hasChanged('localType')) {
 		prepareRelation(updates, state);
@@ -17,6 +18,16 @@ export function applyChanges(updates: StateUpdates, state: State, helperFn: Help
 		generateRelatedCollection(updates);
 		preventCircularConstraint(updates, state);
 		setTypeToRelatedPrimaryKey(updates, state);
+	}
+
+	if (hasChanged('fields.corresponding')) {
+		setRelatedOneFieldForCorrespondingField(updates);
+	}
+
+	if (hasChanged('field.schema.is_nullable')) {
+		if (updates.field?.schema?.is_nullable === false && getCurrent('relations.m2o.schema.on_delete') === 'SET NULL') {
+			set(updates, 'relations.m2o.schema.on_delete', 'NO ACTION');
+		}
 	}
 }
 
@@ -97,5 +108,15 @@ export function setTypeToRelatedPrimaryKey(updates: StateUpdates, state: State) 
 		set(updates, 'field.type', primaryKeyField.type);
 	} else if (state.collections.related?.fields?.[0]?.type) {
 		set(updates, 'field.type', state.collections.related.fields[0].type);
+	}
+}
+
+export function setRelatedOneFieldForCorrespondingField(updates: StateUpdates) {
+	if (updates?.fields?.corresponding?.field) {
+		set(updates, 'relations.m2o.meta.one_field', updates.fields.corresponding.field);
+	}
+
+	if (!updates.fields?.corresponding) {
+		set(updates, 'relations.m2o.meta.one_field', null);
 	}
 }

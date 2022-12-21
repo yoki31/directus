@@ -19,31 +19,68 @@
 #'Int32Array', 'Uint32Array', 'Float32Array', 'Float64Array', 'Map', 'Set', 'WeakMap', 'WeakSet',
 #'SIMD', 'ArrayBuffer', 'DataView', 'JSON', 'Promise', 'Generator', 'GeneratorFunction', 'Reflect',
 #'Proxy', 'Intl'
+identifier: Ταυτοποιητής
 avatar: Άβαταρ
+application: Εφαρμογή
+default_provider: Προεπιλογή
+method: Μέθοδος
+published: Δημοσιευμένο
+draft: Πρόχειρο
+archived: Αρχειοθετήθηκε
+modules: Ενότητες
+logs: Αρχεία καταγραφής (Logs)
+reset_width: Επαναφορά πλάτους
+tile_size: Μέγεθος πλακιδίων
 edit_field: Επεξεργασία Πεδίου
+conditions: Προϋποθέσεις
+location: Τοποθεσία
+input: Εισαγωγή
+maps: Χάρτες
+switch_user: Εναλλαγή Χρήστη
+item_creation: Δημιουργία Στοιχείου
 item_revision: Αναθεώρηση Αντικειμένου
+enter_a_name: Πληκτρολογήστε ένα όνομα...
 duplicate_field: Αντίγραφο Πεδίου
 half_width: Μισό Πλάτος
 full_width: Πλήρες Πλάτος
+group: Ομάδα
+export_items: Εξαγωγή στοιχείων
+and: Και
+or: Ή
+custom: Προσαρμοσμένο
 fill_width: Πλήρες Πλάτος
 field_name_translations: Μεταφράσεις Ονόματος Πεδίου
 enter_password_to_enable_tfa: Εισάγετε τον κωδικό πρόσβασής σας για να ενεργοποιήσετε τον διπλό έλεγχο ταυτότητας
 add_field: Προσθήκη Πεδίου
 role_name: Όνομα Ρόλου
+branch: Κλάδος
+leaf: Φύλλο
+indeterminate: Ενδιάμεσο
+edit_collection: Επεξεργασία συλλογής
 exclusive: Αποκλειστικά
 children: Παιδιά
+db_only_click_to_configure: 'Βάση δεδομένων μόνο: Κάντε κλικ για ρύθμιση'
+show_active_items: Εμφάνιση Αρχειοθετημένων Αντικειμένων
 show_archived_items: Εμφάνιση Αρχειοθετημένων Αντικειμένων
+show_all_items: Εμφάνιση όλων των αντικειμένων
 edited: Η Τιμή Επεξεργάστηκε
 required: Υποχρεωτικό
 required_for_app_access: Απαιτείται για την πρόσβαση στην εφαρμογή
 requires_value: Απαιτεί τιμή
 create_preset: Δημιουργία προεπιλογής
+create_panel: Δημιουργήστε Πάνελ
 create_role: Δημιουργία ρόλου
 create_user: Δημιουργία Χρήστη
+message: Μήνυμα
+delete_panel: Διαγραφή Πίνακα
 create_webhook: Δημιουργία Webhook
+create_translation_string: Δημιουργία Μετάφρασης
+translation_string_translations_placeholder: Δημιουργία νέας μετάφρασης
 invite_users: Πρόσκληση Χρηστών
 invite: Πρόσκληση
 email_already_invited: To email "{email}" έχει ήδη προσκληθεί
+subject: Θέμα
+inbox: Εισερχόμενα
 emails: Emails
 connection_excellent: Εξαιρετική Σύνδεση
 connection_good: Καλή Σύνδεση
@@ -55,12 +92,12 @@ delete_folder: Διαγραφή Φακέλου
 prefix: Πρόθεμα
 suffix: Επίθεμα
 reset_bookmark: Επαναφορά Σελιδοδείκτη
-rename_bookmark: Μετονομασία Σελιδοδείκτη
 update_bookmark: Ενημέρωση Σελιδοδείκτη
 delete_bookmark: Διαγραφή σελιδοδείκτη
 logoutReason:
   SIGN_OUT: Αποσύνδεση
   SESSION_EXPIRED: Η συνεδρία έληξε
+public_label: Κοινόχρηστο
 public_description: Ελέγχει ποια δεδομένα API είναι διαθέσιμα χωρίς ταυτοποίηση.
 not_allowed: Δεν Επιτρέπεται
 directus_version: Έκδοση Directus
@@ -94,7 +131,24 @@ validationError:
   regex: Η τιμή δεν έχει τη σωστή μορφή
 all_access: Όλη Η Πρόσβαση
 no_access: Καμία Πρόσβαση
+nullable: Κενό
+allow_null_value: Επέτρεψε κενές τιμές
 field_standard: Τυπικό
+field_presentation: Παρουσίαση & Συνώνυμα
+field_translations: Μεταφράσεις
+field_group: Ομάδα πεδίων
+item_permissions: Δικαιώματα Στοιχείου
+field_permissions: Δικαιώματα Πεδίου
+field_validation: Επικύρωση Πεδίου
+field_presets: Προεπιλογές πεδίου
+permissions_for_role: 'Στοιχεία ο ρόλος {role} μπορεί {action}.'
+fields_for_role: 'Πεδία ο ρόλος {role} μπορεί {action}.'
+presentation_and_aliases: Παρουσίαση & Συνώνυμα
+revision_post_create: Εδώ εμφανίζεται με τι έμοιαζε αυτό το στοιχείο όταν δημιουργήθηκε.
+language: Γλώσσα
+language_placeholder: Επιλέξτε μια γλώσσα...
+global: Καθολικός
+camera: Κάμερα
 create_field: Δημιουργία πεδίου
 hidden_on_detail: Κρυφό στις λεπτομέρειες
 text: Κείμενο
@@ -105,7 +159,6 @@ next: Επόμενο
 note: Σημείωση
 length: Μήκος
 unique: Μοναδικό
-clear_value: Εκκαθάριση αξίας
 title: Τίτλος
 leave_comment: Άφηστε ένα σχόλιο...
 submit: Υποβολή
@@ -155,6 +208,7 @@ role: Ρόλος
 create: Δημιουργία
 read: Ανάγνωση
 update: Ενημέρωση
+flow_name: Όνομα
 width: Πλάτος
 height: Ύψος
 wysiwyg_options:
@@ -212,12 +266,17 @@ fields:
     title: Τίτλος
     description: Περιγραφή
     tags: Ετικέτες
+    language: Γλώσσα
     theme: Θέμα
     tfa_secret: Έλεγχος ταυτότητας δυο παραγόντων
     status: Κατάσταση
     role: Ρόλος
   directus_settings:
     project_name: Όνομα Έργου
+  directus_shares:
+    name: Όνομα
+    role: Ρόλος
+    password: Κωδικός
   directus_fields:
     note: Σημείωση
     hidden: Κρυφό
@@ -228,11 +287,14 @@ fields:
   directus_webhooks:
     name: Όνομα
     status: Κατάσταση
+    value: Τιμή
+    collections: Συλλογές
 field_options:
   directus_activity:
     create: Δημιουργία
     update: Ενημέρωση
   directus_collections:
+    language: Γλώσσα
     translation: Μετάφραση
     archive_divider: Αρχειοθέτηση
   directus_roles:
@@ -243,6 +305,8 @@ field_options:
   directus_webhooks:
     actions_create: Δημιουργία
     actions_update: Ενημέρωση
+    headers:
+      value: Τιμή
 comment: Σχόλιο
 delete_field_are_you_sure: >-
   Είσαι σίγουρος ότι θέλεις να διαγράψεις το πεδίο "{field}"; Η ενέργεια αυτή δεν μπορεί να αναιρεθεί.
@@ -271,6 +335,7 @@ search: Αναζήτηση
 settings: Ρυθμίσεις
 translation: Μετάφραση
 value: Τιμή
+table: Πίνακας
 interfaces:
   filter:
     all: Όλα
@@ -291,8 +356,15 @@ interfaces:
 displays:
   collection:
     collection: Συλλογή
+  datetime:
+    suffix: Επίθεμα
   file:
     file: Αρχείο
+  formatted-value:
+    prefix: Πρόθεμα
+    suffix: Επίθεμα
+    icon: Εικονίδιο
+    text: Κείμενο
   icon:
     icon: Εικονίδιο
   user:
@@ -310,3 +382,8 @@ layouts:
     comfortable: Άνετος
     compact: Συμπαγής
     cozy: Κανονικό
+operations:
+  log:
+    message: Μήνυμα
+  notification:
+    message: Μήνυμα
